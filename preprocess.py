@@ -34,24 +34,29 @@ args = parser.parse_args()
 
 if args.clear_cache:
     assert args.cache_dir is not None, "Cache directory's path is not defined."
-    
+
 
 def transliterate(sample: dict):
-    if "chapter_id" in sample.column_names:
+    # Dataset is librispeech_asr
+    if "chapter_id" in sample:
         lang = "en"
+        sent_key = "text"
+
+    # Dataset is common voice
     else:
         lang = sample["locale"]
-    sent = sample["sentence"]
+        sent_key = "sentence"
+    sent = sample[sent_key]
     if lang == "ja":
         converter = Japanese2IPA()
         ipa = converter.remove_ja_punct(sent)
         ipa = converter.convert_sentence_to_ipa(ipa)
     elif lang == "mt":
-        ipa = Maltese2IPA.maltese_generate_ipa(sent)
+        ipa = Maltese2IPA().maltese_generate_ipa(sent)
     elif lang == "fi":
-        ipa = Finnish2IPA.finnish_generate_ipa(sent)
+        ipa = Finnish2IPA().finnish_generate_ipa(sent)
     elif lang == "el":
-        ipa = Greek2IPA.greek_generate_ipa(sent)
+        ipa = Greek2IPA().greek_generate_ipa(sent)
     elif lang == "hu":
         ipa = re.findall(r"[\s\w]", sent.lower(), re.MULTILINE)
         ipa = "".join(ipa)
@@ -63,9 +68,9 @@ def transliterate(sample: dict):
         epi = Epitran("pol-Latn")
         ipa = epi.transliterate(ipa)
     elif lang == "ta":
-        ipa = Tamil2IPA.tamil_generate_ipa(sent)
+        ipa = Tamil2IPA().tamil_generate_ipa(sent)
     elif lang == "en":
-        ipa = English2IPA.english_generate_ipa(sent)
+        ipa = English2IPA().english_generate_ipa(sent)
     else:
         raise Exception("Unknown locale (language) found")
     sample["ipa"] = "".join(ipa.split())

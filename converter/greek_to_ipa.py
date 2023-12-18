@@ -124,7 +124,6 @@ class Greek2IPA:
         sent = "".join(sent)
         return sent
 
-    @classmethod
     def greek_generate_ipa(self, sent: str) -> str:
         """
         This function processes punctuation removal and IPA conversion at once.

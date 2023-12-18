@@ -57,8 +57,7 @@ class Finnish2IPA:
             sent = sent.replace(k, v)
         return sent
 
-    @classmethod
-    def finnish_generate_ipa(cls, sent):
-        sent = cls.remove_punct(cls, sent)
-        sent = cls.convert_ipa(cls, sent)
+    def finnish_generate_ipa(self, sent):
+        sent = self.remove_punct(self, sent)
+        sent = self.convert_ipa(self, sent)
         return sent

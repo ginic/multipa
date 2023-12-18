@@ -1,19 +1,13 @@
-# Learning IPA from Japanese and Polish                                                                                                                                                                    
-from datasets import load_dataset, load_metric, Audio, concatenate_datasets, Dataset
-from transformers import Wav2Vec2CTCTokenizer, Wav2Vec2FeatureExtractor, Wav2Vec2Processor, Wav2Vec2ForCTC, TrainingArguments, Trainer
-import json
-import torch
-from dataclasses import dataclass, field
-from typing import Any, Dict, List, Optional, Union
-import random
+# Learning IPA from Japanese and Polish
+import re
 
 # For Japanese processing
 import MeCab
-import unidic
 import romkan
-mecab = MeCab.Tagger()
 
-import re
+
+MECAB = MeCab.Tagger()
+
 
 class Japanese2IPA():
     IGNORE_JA_REGEX = "[、,。]"
@@ -66,7 +60,7 @@ class Japanese2IPA():
         return sent
 
     def convert_sentence_to_ipa(self, sent: str) -> str:
-        s = mecab.parse(sent)
+        s = MECAB.parse(sent)
         kana = ""
         for line in s.split("\n"):
             if line.find("\t") <= 0:
@@ -103,7 +97,6 @@ class Japanese2IPA():
         ipa = " ".join(tokens)
         return ipa
 
-    @classmethod
     def convert(self, batch: dict) -> dict:
         sent = batch["sentence"]
         sent = self.remove_ja_punct(self, sent)

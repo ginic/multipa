@@ -1,36 +1,47 @@
 import eng_to_ipa as ipa
 
-class English2IPA:
-    def __init__(cls):
-        filename = "cmudict-0.7b-ipa.txt"
-        prondict = cls.make_prondict(filename)
 
-    @classmethod
-    def english_generate_ipa(cls, sent: str):
+def make_prondict(filename: str) -> dict:
+    with open(filename, "r") as f:
+        entries = f.readlines()
+        prondict = dict()
+        for e in entries:
+            e = e.strip()
+            k, v = e.split("\t")
+            if "," in v:
+                v = v.split(", ")
+                prondict[k.lower()] = v
+            else:
+                prondict[k.lower()] = [v]
+    return prondict
+
+
+class English2IPA:
+
+    
+    def __init__(self, keep_suprasegmental = False, filename = "cmudict-0.7b-ipa.txt"):
+        """_summary_
+
+        Args:
+            keep_suprasegmental (bool, optional): Set to true to keep stress markers. Defaults to False.
+            filename (str, optional): Path to ipa dictionary filename. Defaults to "cmudict-0.7b-ipa.txt".
+        """
+        self.prondict = make_prondict(filename)
+        self.keep_suprasegmental = keep_suprasegmental
+
+    def english_generate_ipa(self, sent: str):
         words = sent.lower().split()
         transcription = []
-        keys = prondict.keys()
+        keys = self.prondict.keys()
         for w in words:
             if w not in keys:
                 addendum = ipa.convert(w)
             else:
-                addendum = prondict[w][0]
-            if not suprasegmental:
+                addendum = self.prondict[w][0]
+            if not self.keep_suprasegmental:
                 addendum.replace("ˈ", "").replace("ˌ", "")
             transcription.append(addendum)
         output = " ".join(transcription)
         return output
 
-    def make_prondict(cls, filename: str) -> dict:
-        with open(filename, "r") as f:
-            entries = f.readlines()
-            prondict = dict()
-            for e in entries:
-                e = e.strip()
-                k, v = e.split("\t")
-                if "," in v:
-                    v = v.split(", ")
-                    prondict[k.lower()] = v
-                else:
-                    prondict[k.lower()] = [v]
-        return prondict
+    
