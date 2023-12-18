@@ -204,7 +204,7 @@ if __name__ == "__main__":
         f.write("lang train valid\n")
     for i, l in enumerate(lgx):
         train_sample = args.train_samples[i]
-        test_sample = args.test_samples[i]
+        valid_sample = args.test_samples[i]
         q_filter = args.quality_filter[i]
         if l == "en":
             q_filter = False
