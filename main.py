@@ -314,7 +314,7 @@ if __name__ == "__main__":
         ])
     print("Unnecessary columns removed. Data preview:")
     print(common_voice_train[0])
-    assert common_voice_train.features.type == common_voice_test.features.type
+    assert common_voice_train.features.type == common_voice_valid.features.type
 
     # Remove spaces if specified
     if args.no_space:
@@ -337,7 +337,7 @@ if __name__ == "__main__":
         keep_in_memory=True,
         remove_columns=common_voice_train.column_names
     )
-    vocab_valid_ipa = common_voice_test.map(
+    vocab_valid_ipa = common_voice_valid.map(
         extract_all_chars_ipa,
         batched=True,
         batch_size=-1,
@@ -412,7 +412,7 @@ if __name__ == "__main__":
     )
     common_voice_valid = common_voice_valid.map(
         prepare_dataset_ipa,
-        remove_columns=common_voice_test.column_names,
+        remove_columns=common_voice_valid.column_names,
         num_proc=args.num_proc
     )
     print("Removing audio files longer than 6 secs...")
