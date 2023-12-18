@@ -9,8 +9,6 @@ import os
 import shutil
 from epitran import Epitran
 
-import utils
-
 import sys
 sys.path.insert(0, "./converter")
 
@@ -33,7 +31,10 @@ parser.add_argument("--clear_cache", action="store_true",
 parser.add_argument("--cache_dir", type=str,
                     help="Specify the cache directory's path if you choose to clear the cache.")
 args = parser.parse_args()
-assert args.clear_cache and args.cache_dir is not None, "Cache directory's path is not defined."
+
+if args.clear_cache:
+    assert args.cache_dir is not None, "Cache directory's path is not defined."
+    
 
 def transliterate(sample: dict):
     if "chapter_id" in sample.column_names:

@@ -15,6 +15,12 @@ At this moment, we have the following languages incorporated available in the tr
 
 We aim to include more languages to take into account linguistic diversity.
 
+## Installation
+Use a virtual environment, such as anaconda, with python 3.10. It's also a good idea to upgrade pip before you start: `pip install --upgrade pip`.
+Install pytorch dependencies first: `pip install torch==1.11.0 torchvision==0.12.0 torchaudio==0.11.0`
+Then install remaining requirements: `pip install -r requirements.txt`
+
+
 ## How to run
 First, run `pip install -r requirements.txt` for required packages if you need.
 
