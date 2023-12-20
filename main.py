@@ -1,16 +1,16 @@
-from datasets import load_dataset, load_metric, Audio, concatenate_datasets, Dataset
+from datasets import load_dataset, Audio, concatenate_datasets
 from transformers import Wav2Vec2CTCTokenizer, Wav2Vec2FeatureExtractor, Wav2Vec2Processor, Wav2Vec2ForCTC, TrainingArguments, Trainer
 import json
 import torch
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from typing import Any, Dict, List, Optional, Union
-import random
 import argparse
-import pandas as pd
-import os
-import multiprocess
+from pathlib import Path
 
-from data_utils import filter_low_quality, downsampling
+import sys
+sys.path.insert(0, "./converter")
+
+from data_utils import filter_low_quality
 
 def extract_all_chars_ipa(batch: dict) -> dict:
     # Change this function later at some point to create vocabulary based on
@@ -191,7 +191,9 @@ if __name__ == "__main__":
     
     assert len(args.train_samples) <= len(lgx), "`train_samples` argument is longer than the number of languages"
     assert len(args.test_samples) <= len(lgx), "`test_samples` argument is longer than the number of languages"
-    assert len(args.quality_filter) <= len(lgx), "`quality_filter` argument is longer than the number of languages"
+    
+    # Use the same quality filter setting for all languages
+    quality_filter = len(lgx) * [args.quality_filter]
 
     if args.additional_data:
         from add_forvo import add_language
@@ -205,16 +207,16 @@ if __name__ == "__main__":
     for i, l in enumerate(lgx):
         train_sample = args.train_samples[i]
         valid_sample = args.test_samples[i]
-        q_filter = args.quality_filter[i]
+        q_filter = quality_filter[i]
         if l == "en":
             q_filter = False
 
         # Get preprocessed training dataset with IPA
         train_ipa = load_dataset("json",
-                                 data_files="{}{}_train.json".format(args.data_dir, l),
+                                 data_files=str(Path(args.data_dir) / f"{l}_train.json"),
                                  split="train")
         valid_ipa = load_dataset("json",
-                                 data_files="{}{}_valid.json".format(args.data_dir, l),
+                                 data_files=str(Path(args.data_dir) / f"{l}_valid.json"),
                                  split="train")
         if l == "en":
             # Librispeech's file name column is "file"
@@ -317,9 +319,8 @@ if __name__ == "__main__":
     assert common_voice_train.features.type == common_voice_valid.features.type
 
     # Remove spaces if specified
-    if args.no_space:
-        common_voice_train = common_voice_train.map(remove_space)
-        common_voice_valid = common_voice_valid.map(remove_space)
+    common_voice_train = common_voice_train.map(remove_space)
+    common_voice_valid = common_voice_valid.map(remove_space)
     assert " " not in common_voice_train[0]["ipa"], print("Apparently space removal did not work correctly")
         
     # Shuffle the dataset
