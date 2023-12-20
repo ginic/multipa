@@ -222,6 +222,8 @@ if __name__ == "__main__":
             # Librispeech's file name column is "file"
             train_ipa = train_ipa.sort("file")
             valid_ipa = valid_ipa.sort("file")
+            train_ipa = train_ipa.rename_column("text", "sentence")
+            valid_ipa = valid_ipa.rename_column("text", "sentence")
 
             # Get raw training dataset
             train_data = load_dataset("librispeech_asr",
