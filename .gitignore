@@ -1,1 +1,5 @@
 *.pyc
+
+# Default data output directories
+data/*
+dataset_cache/*

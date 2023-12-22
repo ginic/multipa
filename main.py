@@ -173,7 +173,7 @@ if __name__ == "__main__":
     parser.add_argument("-ns", "--no_space", type=bool, default=False,
                         help="Set True if you want to remove spaces from the training and test data.")
     parser.add_argument("-v", "--vocab_file", type=str,
-                        help="Specify the vocab file name to be created")
+                        help="Specify the vocab file name to be created", required=True)
     parser.add_argument("-dd", "--data_dir", type=str, default="data_new/",
                         help="Specify the directory path for the training/validation data files." \
                         "Default is set to `data_new/`, which stores the data from the as-of-now newest" \
@@ -185,6 +185,8 @@ if __name__ == "__main__":
                         help="Specify the number of train epochs. By default it's set to 30.")
     parser.add_argument("--num_proc", type=int, default=8,
                         help="Specify the number of CPUs for preprocessing. Default set to 24.")
+    parser.add_argument("--cache_dir", type=str, default="~/.cache/huggingface/datasets",
+                        help="Specify the cache directory's path if you choose to load dataset from non-default cache.")
     args = parser.parse_args()
     lgx = args.languages
     suffix = args.suffix
@@ -228,14 +230,16 @@ if __name__ == "__main__":
             # Get raw training dataset
             train_data = load_dataset("librispeech_asr",
                                       split="train.clean.100",
-                                      num_proc=args.num_proc)
+                                      num_proc=args.num_proc, 
+                                      cache_dir=args.cache_dir)
             train_data = train_data.sort("file")
             train_data = train_data.rename_column("text", "sentence")
 
             # Get raw validation dataset
             valid_data = load_dataset("librispeech_asr",
                                       split="validation.clean",
-                                      num_proc=args.num_proc)
+                                      num_proc=args.num_proc, 
+                                      cache_dir=args.cache_dir)
             valid_data = valid_data.sort("file")
             valid_data = valid_data.rename_column("text", "sentence")
         else:
@@ -245,14 +249,16 @@ if __name__ == "__main__":
             train_data = load_dataset(args.dataset,
                                       l,
                                       split="train",
-                                      num_proc=args.num_proc)
+                                      num_proc=args.num_proc,
+                                      cache_dir=args.cache_dir)
             train_data = train_data.sort("path")
 
             # Get raw validation dataset from common_voice_11_0
             valid_data = load_dataset(args.dataset,
                                      l,
                                      split="validation",
-                                     num_proc=args.num_proc)
+                                     num_proc=args.num_proc, 
+                                     cache_dir=args.cache_dir)
             valid_data = valid_data.sort("path")
         
         assert train_data[0]["sentence"] == train_ipa[0]["sentence"], (train_data[0]["sentence"], train_ipa[0]["sentence"])
@@ -307,15 +313,13 @@ if __name__ == "__main__":
         print("Concatenated additional data from Forvo")
 
     # Remove unnecessary columns
-    print("Removing unnecessary columns...")
-    common_voice_train = common_voice_train.remove_columns([
-        "accent", "age", "client_id", "down_votes", "gender", "locale", "segment", "up_votes",
+    unnecessary_columns = ["accent", "age", "client_id", "down_votes", "gender", "locale", "segment", "up_votes",
         "speaker_id", "chapter_id", "id" #for librispeech
-        ])
-    common_voice_valid = common_voice_valid.remove_columns([
-        "accent", "age", "client_id", "down_votes", "gender", "locale",	"segment", "up_votes",
-        "speaker_id", "chapter_id", "id" #for librispeech
-        ])
+        ]
+    columns_to_remove = set(unnecessary_columns).intersection(common_voice_train.column_names)
+    print("Removing unnecessary columns:", columns_to_remove)
+    common_voice_train = common_voice_train.remove_columns(columns_to_remove)
+    common_voice_valid = common_voice_valid.remove_columns(columns_to_remove)
     print("Unnecessary columns removed. Data preview:")
     print(common_voice_train[0])
     assert common_voice_train.features.type == common_voice_valid.features.type

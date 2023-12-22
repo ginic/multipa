@@ -1,12 +1,9 @@
-from datasets import load_dataset, Audio, concatenate_datasets, Dataset
+from datasets import load_dataset, Dataset
 from argparse import ArgumentParser
-import json
 import re
-from multiprocessing import Pool
 import time
 import pandas as pd
 import os
-import shutil
 from epitran import Epitran
 
 import sys
@@ -28,12 +25,9 @@ parser.add_argument("--num_proc", type=int, default=1,
                     help="Specify the number of cores to use for multiprocessing. The default is set to 1 (no multiprocessing).")
 parser.add_argument("--clear_cache", action="store_true",
                     help="Use this option if you want to clear the dataset cache after loading to prevent memory from crashing.")
-parser.add_argument("--cache_dir", type=str,
+parser.add_argument("--cache_dir", type=str, default="~/.cache/huggingface/datasets",
                     help="Specify the cache directory's path if you choose to clear the cache.")
 args = parser.parse_args()
-
-if args.clear_cache:
-    assert args.cache_dir is not None, "Cache directory's path is not defined."
 
 
 def transliterate(sample: dict):
@@ -94,7 +88,50 @@ def remove_audio_column(train, valid) -> tuple:
     train = train.remove_columns(["audio"])
     valid = valid.remove_columns(["audio"])
     return train, valid
-    
+
+def load_dataset_by_language(language, cache_dir):
+
+    if language == "en":
+        train = load_dataset("librispeech_asr",
+                                split="train.clean.100",
+                                cache_dir=cache_dir)
+        valid = load_dataset("librispeech_asr",
+                                split="validation.clean",
+                                cache_dir=cache_dir)
+    elif language == "ta":
+        # Tamil dataset is too big and reaches AFS file path limit
+        train = load_dataset("mozilla-foundation/common_voice_11_0", language,
+                                split="train",
+                                streaming=True,
+                                cache_dir=cache_dir)
+        valid = load_dataset("mozilla-foundation/common_voice_11_0", language,
+                                split="validation",
+                                streaming=True, 
+                                cache_dir=cache_dir)
+        ds_train = []
+        ds_valid = []
+        for i, batch in enumerate(train):
+            if i >= 30000:
+                break
+            ds_train.append(batch)
+        for i, batch in enumerate(valid):
+            if i >= 30000:
+                break
+            ds_valid.append(batch)
+        train = Dataset.from_pandas(pd.DataFrame(data=ds_train))
+        valid = Dataset.from_pandas(pd.DataFrame(data=ds_valid))
+
+        train, valid = remove_tamil_special_char(train, valid)
+        
+    else:
+        train = load_dataset("mozilla-foundation/common_voice_11_0", language,
+                                split="train", cache_dir=cache_dir)
+                        
+        valid = load_dataset("mozilla-foundation/common_voice_11_0", language,
+                                split="validation", cache_dir=cache_dir)
+        
+    return train, valid
+
 # Dataset
 if __name__ == "__main__":
     if not os.path.exists(args.output_dir):
@@ -102,45 +139,11 @@ if __name__ == "__main__":
     stats_file = "{}/presave_trainvalid_stats.tsv".format(args.output_dir)
     with open(stats_file, "w") as f:
         f.write("lang\ttrain\tvalid\ttime\n")
-        
+    start = time.time()        
     # test data split creation
-    for l in args.languages:
-        start = time.time()
-        if l == "en":
-            train = load_dataset("librispeech_asr",
-                                 split="train.clean.100")
-            valid = load_dataset("librispeech_asr",
-                                 split="validation.clean")
-        elif l == "ta":
-            # Tamil dataset is too big and reaches AFS file path limit
-            train = load_dataset("mozilla-foundation/common_voice_11_0", l,
-                                 split="train",
-                                 streaming=True)
-            valid = load_dataset("mozilla-foundation/common_voice_11_0", l,
-                                 split="validation",
-                                 streaming=True)
-            ds_train = []
-            ds_valid = []
-            for i, batch in enumerate(train):
-                if i >= 30000:
-                    break
-                ds_train.append(batch)
-            for i, batch in enumerate(valid):
-                if i >= 30000:
-                    break
-                ds_valid.append(batch)
-            train = Dataset.from_pandas(pd.DataFrame(data=ds_train))
-            valid = Dataset.from_pandas(pd.DataFrame(data=ds_valid))
-            
-        else:
-            train = load_dataset("mozilla-foundation/common_voice_11_0", l,
-                                 split="train")
-            valid = load_dataset("mozilla-foundation/common_voice_11_0", l,
-                                 split="validation")
-
-        if l == "ta":
-            train, valid = remove_tamil_special_char(train, valid)
-
+    for language in args.languages:
+        train, valid = load_dataset_by_language(language, args.cache_dir)
+    
         # Remove audio column (non-writable to json)
         train, valid = remove_audio_column(train, valid)
 
@@ -150,18 +153,19 @@ if __name__ == "__main__":
                           num_proc=args.num_proc)
 
         # Export to json
-        train.to_json("{}/{}_train.json".format(args.output_dir, l))
-        valid.to_json("{}/{}_valid.json".format(args.output_dir, l))
+        train.to_json("{}/{}_train.json".format(args.output_dir, language))
+        valid.to_json("{}/{}_valid.json".format(args.output_dir, language))
 
-        print("{}\ttrain: {}\tvalid: {}\n".format(l, len(train), len(valid)))
+        print("{}\ttrain: {}\tvalid: {}\n".format(language, len(train), len(valid)))
         end = time.time()
         duration = end - start
-        print("Elapsed time for {}: {}".format(l, duration))
+        print("Elapsed time for {}: {}".format(language, duration))
         with open(stats_file, "a") as f:
-            f.write("{}\t{}\t{}\t{}\n".format(l, len(train), len(valid), duration))
+            f.write("{}\t{}\t{}\t{}\n".format(language, len(train), len(valid), duration))
 
         # Clear cache
         print("Clearing the cache...")
         if args.clear_cache:
-            shutil.rmtree(args.cache_dir, ignore_errors=True)
+            train.cleanup_cache_files()
+            valid.cleanup_cache_files()
         print("Cache cleared")
