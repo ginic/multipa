@@ -1,7 +1,10 @@
 #!/bin/bash
 
 # Data preprocessing
-mkdir data
-mkdir dataset_cache
+data_dir=data
+dataset_cache=dataset_cache
 
-python preprocess.py --languages en --output_dir data --num_proc 8 --cache_dir dataset_cache --clear_cache
+mkdir $data_dir
+mkdir $dataset_cache
+
+python preprocess.py --languages en --output_dir $data_dir --num_proc 8 --cache_dir $dataset_cache --clear_cache

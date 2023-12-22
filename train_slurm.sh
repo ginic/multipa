@@ -3,11 +3,16 @@
 
 #SBATCH -c 12
 #SBATCH --mem=24GB
-#SBATCH --p gpu-long
+#SBATCH --p gpu-preempt
 #SBATCH --G 1
 #SBATCH --time 12:00:00
 #SBACTH -o train.out
 #SBATCH --mail-type END
+
+module load miniconda/22.11.1-1
+module load cuda/11.3.1
+
+conda ativate multipa
 
 data_dir=data
 cache_dir=dataset_cache
