@@ -3,9 +3,9 @@
 
 #SBATCH -c 12
 #SBATCH --mem=12GB
-#SBATCH --p gpu-preempt
+#SBATCH -p gpu-preempt
 #SBATCH --time 01:00:00
-#SBACTH -o setup.out
+#SBACTH -o setup_%j.out
 #SBATCH --mail-type END
 
 module load miniconda/22.11.1-1

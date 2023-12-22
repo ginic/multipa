@@ -3,9 +3,9 @@
 
 #SBATCH -c 12
 #SBATCH --mem=12GB
-#SBATCH --p cpu-preempt
+#SBATCH -p cpu-preempt
 #SBATCH --time 02:00:00
-#SBACTH -o preprocessing.out
+#SBACTH -o preprocessing_%j.out
 #SBATCH --mail-type END
 
 # Load slurm stuff
