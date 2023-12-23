@@ -12,7 +12,7 @@
 module load miniconda/22.11.1-1
 module load cuda/11.3.1
 
-conda ativate multipa
+conda activate multipa
 
 data_dir=data
 cache_dir=dataset_cache
