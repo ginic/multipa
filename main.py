@@ -325,9 +325,10 @@ if __name__ == "__main__":
     assert common_voice_train.features.type == common_voice_valid.features.type
 
     # Remove spaces if specified
-    common_voice_train = common_voice_train.map(remove_space)
-    common_voice_valid = common_voice_valid.map(remove_space)
-    assert " " not in common_voice_train[0]["ipa"], print("Apparently space removal did not work correctly")
+    if args.no_space:
+        common_voice_train = common_voice_train.map(remove_space)
+        common_voice_valid = common_voice_valid.map(remove_space)
+        assert " " not in common_voice_train[0]["ipa"], print("Apparently space removal did not work correctly")
         
     # Shuffle the dataset
     print("Shuffling the dataset...")
