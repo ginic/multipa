@@ -6,7 +6,7 @@
 #SBATCH --p gpu-preempt
 #SBATCH --G 1
 #SBATCH --time 12:00:00
-#SBACTH -o train_%j.out
+#SBATCH -o train_%j.out
 #SBATCH --mail-type END
 
 module load miniconda/22.11.1-1
