@@ -6,6 +6,7 @@ from dataclasses import dataclass
 from typing import Any, Dict, List, Optional, Union
 import argparse
 from pathlib import Path
+import gc
 
 import sys
 sys.path.insert(0, "./converter")
@@ -453,19 +454,24 @@ if __name__ == "__main__":
 
     # Freeze the feature extractor so that it won't be changed by the fine-tuning
     print("Freezing the feature extractor...") 
-    model.freeze_feature_extractor()
+    model.freeze_feature_encoder()
     print("Feature extractor frozen")
 
     output_dir = "./wav2vec2-large-xlsr-{}-ipa".format("".join(lgx))
     if suffix:
         output_dir += suffix
+
+    print("Running garbage collection before training")
+    gc.collect()
+    torch.cuda.empty_cache()
+
     # Training
     print("Beginning the training...") 
     training_args = TrainingArguments(
         output_dir=output_dir,
         group_by_length=True,
-        per_device_train_batch_size=4,
-        gradient_accumulation_steps=2,
+        per_device_train_batch_size=2,
+        gradient_accumulation_steps=4,
         evaluation_strategy="steps",
         num_train_epochs=args.num_train_epochs,
         fp16=True,
