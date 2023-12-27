@@ -90,7 +90,7 @@ class DataCollatorCTCWithPadding:
 
         return batch
 
-def remove_long_data(dataset, max_seconds=6):
+def remove_long_data(dataset, max_seconds=12):
     # convert pyarrow table to pandas
     dftest = dataset.to_pandas()
     # find out length of input_values
@@ -187,6 +187,7 @@ if __name__ == "__main__":
                         help="Specify the number of CPUs for preprocessing. Default set to 24.")
     parser.add_argument("--cache_dir", type=str, default="~/.cache/huggingface/datasets",
                         help="Specify the cache directory's path if you choose to load dataset from non-default cache.")
+    parser.add_argument("-ml", "--max-length", type=int, default=12, help="Maximum audio length of training & validation samples in seconds")
     args = parser.parse_args()
     lgx = args.languages
     suffix = args.suffix
@@ -423,9 +424,9 @@ if __name__ == "__main__":
         remove_columns=common_voice_valid.column_names,
         num_proc=args.num_proc
     )
-    print("Removing audio files longer than 6 secs...")
-    common_voice_train = remove_long_data(common_voice_train)
-    common_voice_valid = remove_long_data(common_voice_valid)
+    print(f"Removing audio files longer than {args.max_length} secs...")
+    common_voice_train = remove_long_data(common_voice_train, args.max_length)
+    common_voice_valid = remove_long_data(common_voice_valid, args.max_length)
     print("Dataset lengths to be trained and tested:")
     print("Train:", len(common_voice_train))
     print("Valid:", len(common_voice_valid))
@@ -484,9 +485,11 @@ if __name__ == "__main__":
         eval_dataset=common_voice_valid,
         tokenizer=processor_ipa.feature_extractor,
         )
-
+    
     trainer.train()
     trainer.evaluate()
     trainer.save_state()
     trainer.save_model()
+    # You also need to save the tokenizer in order to save the model
+    tokenizer_ipa.save_pretrained(output_dir)
     # trainer.push_to_hub(repo_name="wav2vec2-ipa")
