@@ -1,10 +1,12 @@
-from datasets import load_dataset, Dataset
 from argparse import ArgumentParser
+import os
+from pathlib import Path
 import re
 import time
-import pandas as pd
-import os
+
+from datasets import load_dataset, Dataset
 from epitran import Epitran
+import pandas as pd
 
 import sys
 sys.path.insert(0, "./converter")
@@ -17,8 +19,8 @@ from tamil_to_ipa import Tamil2IPA
 from english_to_ipa import English2IPA
 
 parser = ArgumentParser(description="Create dataset locally.")
-parser.add_argument("-l", "--languages", nargs="+", default=["ja", "pl", "mt", "hu", "fi", "el", "ta", "en"],
-                    help="Specify the languages to include in the test dataset.")
+
+
 parser.add_argument("--output_dir", type=str, default="data_new",
                     help="Specify the output directory in which the preprocessed data will be stored.")
 parser.add_argument("--num_proc", type=int, default=1,
@@ -27,6 +29,21 @@ parser.add_argument("--clear_cache", action="store_true",
                     help="Use this option if you want to clear the dataset cache after loading to prevent memory from crashing.")
 parser.add_argument("--cache_dir", type=str, default="~/.cache/huggingface/datasets",
                     help="Specify the cache directory's path if you choose to clear the cache.")
+
+subparsers = parser.add_subparsers(help="Specify which corpus you'll be using", dest="corpus")
+
+comm_voice_subparser = subparsers.add_parser("commonvoice", help="Use the Common Voice corpus version 11 from the Huggingface data repo.")
+comm_voice_subparser.add_argument("-l", "--languages", nargs="+", default=["ja", "pl", "mt", "hu", "fi", "el", "ta"],
+                    help="Specify the languages to include in the test dataset.")
+
+librispeech_subparser = subparsers.add_parser("librispeech", help="Use the Librispeech ASR English corpus from the Huggingface data repo.")
+
+buckeye_subparser = subparsers.add_parser("buckeye", help="Use the Buckeye corpus with pre-defined train/test splits in local files.")
+parser.add_argument("--train_dir","-r", type=Path, help="Directory containing train data split for Buckeye")
+parser.add_argument("--dev_dir","-d", type=Path, help="Directory containing validation/dev data split for Buckeye")
+parser.add_argument("--test_dir","-e", type=Path, help="Directory containing test data split for Buckeye")
+
+
 args = parser.parse_args()
 
 
@@ -140,6 +157,8 @@ if __name__ == "__main__":
     with open(stats_file, "w") as f:
         f.write("lang\ttrain\tvalid\ttime\n")
     start = time.time()        
+    # TODO Check for different corpus here, then only Common Voice needs to deal with multiple languages. 
+
     # test data split creation
     for language in args.languages:
         train, valid = load_dataset_by_language(language, args.cache_dir)
