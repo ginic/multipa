@@ -1,8 +1,8 @@
 from datasets import load_dataset, Dataset
-from multipa.convert.japanese_to_ipa import Japanese2IPA
-from multipa.convert.maltese_to_ipa import Maltese2IPA
-from multipa.convert.finnish_to_ipa import Finnish2IPA
-from multipa.convert.greek_to_ipa import Greek2IPA
+from multipa.converter.japanese_to_ipa import Japanese2IPA
+from multipa.converter.maltese_to_ipa import Maltese2IPA
+from multipa.converter.finnish_to_ipa import Finnish2IPA
+from multipa.converter.greek_to_ipa import Greek2IPA
 import random
 import epitran
 import re

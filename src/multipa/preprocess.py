@@ -8,12 +8,12 @@ from datasets import load_dataset, Dataset
 from epitran import Epitran
 import pandas as pd
 
-from multipa.convert.japanese_to_ipa import Japanese2IPA
-from multipa.convert.maltese_to_ipa import Maltese2IPA
-from multipa.convert.finnish_to_ipa import Finnish2IPA
-from multipa.convert.greek_to_ipa import Greek2IPA
-from multipa.convert.tamil_to_ipa import Tamil2IPA
-from multipa.convert.english_to_ipa import English2IPA
+from multipa.converter.japanese_to_ipa import Japanese2IPA
+from multipa.converter.maltese_to_ipa import Maltese2IPA
+from multipa.converter.finnish_to_ipa import Finnish2IPA
+from multipa.converter.greek_to_ipa import Greek2IPA
+from multipa.converter.tamil_to_ipa import Tamil2IPA
+from multipa.converter.english_to_ipa import English2IPA
 
 # Constant corpus identifier options
 LIBRISPEECH_KEY = "librispeech"
