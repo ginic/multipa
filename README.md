@@ -18,16 +18,16 @@ We aim to include more languages to take into account linguistic diversity.
 ## Installation
 Use a virtual environment, such as anaconda, with python 3.10. It's also a good idea to upgrade pip before you start: `pip install --upgrade pip`.
 Install pytorch dependencies first: `pip install torch==1.11.0 torchvision==0.12.0 torchaudio==0.11.0`
-Then install remaining requirements: `pip install -r requirements.txt`
+Then install remaining requirements: `pip install .`. You can run `pip install -e .[dev,test]` for the developer set up.
 
 
 ## How to run
-First, run `pip install -r requirements.txt` for required packages if you need.
+First, run `pip install .` to install this package and required libraries.
 
 You need to convert the transcription in the CommonVoice dataset into IPA before training a model.
 To do so, run `preprocess.py`; for example,
 ```
-python preprocess.py \
+multipa-preprocess \
        -l ja pl mt hu fi el ta \
        --num_proc 48
 ```
@@ -35,7 +35,7 @@ python preprocess.py \
 Then, run `main.py` to train a model.
 For example:
 ```
-python3 main.py \
+multipa-train \
         -l ja pl mt hu fi el ta \
         -tr 1000 1000 1000 1000 1000 1000 1000 \
         -te 200 200 200 200 200 200 200 \
