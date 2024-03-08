@@ -18,6 +18,12 @@ from greek_to_ipa import Greek2IPA
 from tamil_to_ipa import Tamil2IPA
 from english_to_ipa import English2IPA
 
+# Constant corpus identifier options
+LIBRISPEECH_KEY = "librispeech"
+COMMONVOICE_KEY = "commonvoice"
+BUCKEYE_KEY = "buckeye"
+
+
 parser = ArgumentParser(description="Create dataset locally.")
 
 
@@ -32,13 +38,13 @@ parser.add_argument("--cache_dir", type=str, default="~/.cache/huggingface/datas
 
 subparsers = parser.add_subparsers(help="Specify which corpus you'll be using", dest="corpus")
 
-comm_voice_subparser = subparsers.add_parser("commonvoice", help="Use the Common Voice corpus version 11 from the Huggingface data repo.")
+comm_voice_subparser = subparsers.add_parser(COMMONVOICE_KEY, help="Use the Common Voice corpus version 11 from the Huggingface data repo.")
 comm_voice_subparser.add_argument("-l", "--languages", nargs="+", default=["ja", "pl", "mt", "hu", "fi", "el", "ta"],
                     help="Specify the languages to include in the test dataset.")
 
-librispeech_subparser = subparsers.add_parser("librispeech", help="Use the Librispeech ASR English corpus from the Huggingface data repo.")
+librispeech_subparser = subparsers.add_parser(LIBRISPEECH_KEY, help="Use the Librispeech ASR English corpus from the Huggingface data repo.")
 
-buckeye_subparser = subparsers.add_parser("buckeye", help="Use the Buckeye corpus with pre-defined train/test splits in local files.")
+buckeye_subparser = subparsers.add_parser(BUCKEYE_KEY, help="Use the Buckeye corpus with pre-defined train/test splits in local files.")
 parser.add_argument("--train_dir","-r", type=Path, help="Directory containing train data split for Buckeye")
 parser.add_argument("--dev_dir","-d", type=Path, help="Directory containing validation/dev data split for Buckeye")
 parser.add_argument("--test_dir","-e", type=Path, help="Directory containing test data split for Buckeye")
@@ -106,48 +112,51 @@ def remove_audio_column(train, valid) -> tuple:
     valid = valid.remove_columns(["audio"])
     return train, valid
 
-def load_dataset_by_language(language, cache_dir):
-
-    if language == "en":
+def load_dataset_by_corpus_and_language(corpus, language, cache_dir):
+    if corpus==LIBRISPEECH_KEY:
         train = load_dataset("librispeech_asr",
                                 split="train.clean.100",
                                 cache_dir=cache_dir)
         valid = load_dataset("librispeech_asr",
                                 split="validation.clean",
                                 cache_dir=cache_dir)
-    elif language == "ta":
-        # Tamil dataset is too big and reaches AFS file path limit
-        train = load_dataset("mozilla-foundation/common_voice_11_0", language,
-                                split="train",
-                                streaming=True,
-                                cache_dir=cache_dir)
-        valid = load_dataset("mozilla-foundation/common_voice_11_0", language,
-                                split="validation",
-                                streaming=True, 
-                                cache_dir=cache_dir)
-        ds_train = []
-        ds_valid = []
-        for i, batch in enumerate(train):
-            if i >= 30000:
-                break
-            ds_train.append(batch)
-        for i, batch in enumerate(valid):
-            if i >= 30000:
-                break
-            ds_valid.append(batch)
-        train = Dataset.from_pandas(pd.DataFrame(data=ds_train))
-        valid = Dataset.from_pandas(pd.DataFrame(data=ds_valid))
+    elif corpus==COMMONVOICE_KEY:
+        if language == "ta":
+            # Tamil dataset is too big and reaches AFS file path limit
+            train = load_dataset("mozilla-foundation/common_voice_11_0", language,
+                                    split="train",
+                                    streaming=True,
+                                    cache_dir=cache_dir)
+            valid = load_dataset("mozilla-foundation/common_voice_11_0", language,
+                                    split="validation",
+                                    streaming=True, 
+                                    cache_dir=cache_dir)
+            ds_train = []
+            ds_valid = []
+            for i, batch in enumerate(train):
+                if i >= 30000:
+                    break
+                ds_train.append(batch)
+            for i, batch in enumerate(valid):
+                if i >= 30000:
+                    break
+                ds_valid.append(batch)
+            train = Dataset.from_pandas(pd.DataFrame(data=ds_train))
+            valid = Dataset.from_pandas(pd.DataFrame(data=ds_valid))
 
-        train, valid = remove_tamil_special_char(train, valid)
-        
+            train, valid = remove_tamil_special_char(train, valid)
+            
+        else:
+            train = load_dataset("mozilla-foundation/common_voice_11_0", language,
+                                    split="train", cache_dir=cache_dir)
+                            
+            valid = load_dataset("mozilla-foundation/common_voice_11_0", language,
+                                    split="validation", cache_dir=cache_dir)
     else:
-        train = load_dataset("mozilla-foundation/common_voice_11_0", language,
-                                split="train", cache_dir=cache_dir)
-                        
-        valid = load_dataset("mozilla-foundation/common_voice_11_0", language,
-                                split="validation", cache_dir=cache_dir)
+        raise ValueError(f"'{corpus}' is not a valid corpus option.")
         
     return train, valid
+
 
 # Dataset
 if __name__ == "__main__":
@@ -157,30 +166,33 @@ if __name__ == "__main__":
     with open(stats_file, "w") as f:
         f.write("lang\ttrain\tvalid\ttime\n")
     start = time.time()        
-    # TODO Check for different corpus here, then only Common Voice needs to deal with multiple languages. 
 
     # test data split creation
-    for language in args.languages:
-        train, valid = load_dataset_by_language(language, args.cache_dir)
-    
-        # Remove audio column (non-writable to json)
-        train, valid = remove_audio_column(train, valid)
+    if args.corpus == BUCKEYE_KEY:
+        # TODO
+        pass
+    elif args.corpus in [COMMONVOICE_KEY, LIBRISPEECH_KEY]:
+        for language in args.languages:
+            train, valid = load_dataset_by_corpus_and_language(args.corpus, language, args.cache_dir)
+        
+            # Remove audio column (non-writable to json)
+            train, valid = remove_audio_column(train, valid)
 
-        train = train.map(transliterate,
-                          num_proc=args.num_proc)
-        valid = valid.map(transliterate,
-                          num_proc=args.num_proc)
+            train = train.map(transliterate,
+                            num_proc=args.num_proc)
+            valid = valid.map(transliterate,
+                            num_proc=args.num_proc)
 
-        # Export to json
-        train.to_json("{}/{}_train.json".format(args.output_dir, language))
-        valid.to_json("{}/{}_valid.json".format(args.output_dir, language))
+            # Export to json
+            train.to_json("{}/{}_train.json".format(args.output_dir, language))
+            valid.to_json("{}/{}_valid.json".format(args.output_dir, language))
 
-        print("{}\ttrain: {}\tvalid: {}\n".format(language, len(train), len(valid)))
-        end = time.time()
-        duration = end - start
-        print("Elapsed time for {}: {}".format(language, duration))
-        with open(stats_file, "a") as f:
-            f.write("{}\t{}\t{}\t{}\n".format(language, len(train), len(valid), duration))
+            print("{}\ttrain: {}\tvalid: {}\n".format(language, len(train), len(valid)))
+            end = time.time()
+            duration = end - start
+            print("Elapsed time for {}: {}".format(language, duration))
+            with open(stats_file, "a") as f:
+                f.write("{}\t{}\t{}\t{}\n".format(language, len(train), len(valid), duration))
 
         # Clear cache
         print("Clearing the cache...")
