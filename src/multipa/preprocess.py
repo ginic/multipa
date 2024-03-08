@@ -2,6 +2,7 @@ from argparse import ArgumentParser
 import os
 from pathlib import Path
 import re
+import shutil
 import time
 
 from datasets import load_dataset, Dataset
@@ -14,6 +15,7 @@ from multipa.converter.finnish_to_ipa import Finnish2IPA
 from multipa.converter.greek_to_ipa import Greek2IPA
 from multipa.converter.tamil_to_ipa import Tamil2IPA
 from multipa.converter.english_to_ipa import English2IPA
+from multipa.converter.buckeye_to_ipa import buckeye_to_ipa
 
 # Constant corpus identifier options
 LIBRISPEECH_KEY = "librispeech"
@@ -64,6 +66,7 @@ def transliterate(sample: dict):
     sample["ipa"] = "".join(ipa.split())
     return sample
 
+
 def remove_tamil_special_char(train, valid) -> tuple:
     """Remove sentences including "ச" since its pronunciation
     seems to be irregular/erratic
@@ -71,6 +74,7 @@ def remove_tamil_special_char(train, valid) -> tuple:
     train = train.filter(lambda batch: "ச" not in batch["sentence"])
     valid = valid.filter(lambda batch: "ச" not in batch["sentence"])
     return train, valid
+
 
 def remove_audio_column(train, valid) -> tuple:
     """Remove ["audio"] column from the dataset so that it can be
@@ -129,9 +133,60 @@ def load_dataset_by_corpus_and_language(corpus, language, cache_dir):
     return train, valid
 
 
+def resolve_filepath(basename:str, suffix:str, path_prefix:str):
+    """Resolve relative file path to by adding appropriate file suffix and path prefix
+
+    Args:
+        basename (str): filename without suffix
+        suffix (str): desired file suffix
+        path_prefix (str): desired file path to pre-pend
+    """
+    full_path = path_prefix / basename
+    return str(full_path.with_suffix(suffix))
+
+
+def process_buckeye_subfolder(input_directory:Path, output_dir:Path, split:str):
+    """Get IPA transcriptions for Buckeye, then write output in the appropriate HuggingFace audiofolder format in output_dir
+    Return the number of utterances processed. 
+
+    Args:
+        input_directory (Path): A pre-defined split of the Buckeye corpus containing audio files, transcription_data.txt and orthographic_data.txt
+        output_dir (Path): Desired output directory
+        split (str): identifies the data split, e.g. 'train', 'test'
+
+    Returns:
+        int: Number of files processed
+    """
+    # Combine orthographic transcriptions, Buckeye and IPA transcriptions
+    transcription_file = input_directory / "transcription_data.txt"
+    transcriptions_df = pd.read_csv(transcription_file, sep="\t", usecols=["utterance_id", "duration", "buckeye_transcript"])
+    orthography_file = input_directory / "orthographic_data.txt"
+    orthography_df = pd.read_csv(orthography_file, sep="\t", usecols=["utterance_id", "duration", "text"]).drop("duration")
+    transcriptions_df = transcriptions_df.join(orthography_df, on="utterance_id")
+    transcriptions_df["ipa"] = transcriptions_df["buckeye_transcript"].apply(buckeye_to_ipa)
+
+    # The file paths need to be relative to the parent folder for Hugging face    
+    split_dir = output_dir / split
+    split_dir.mkdir(parents=True)    
+    audio_suffix = ".wav"
+    transcriptions_df["file"] = transcriptions_df["utterance_id"].apply(lambda x: resolve_filepath(x, audio_suffix, split_dir))
+
+    # CSV is complete
+    # TODO Is it necessary to output JSON here also? 
+    transcriptions_df.to_csv(output_dir / f"{split}.csv", index=False)
+
+    # Copy audio to destination folder
+    audio_files = input_directory.glob(f"*{audio_suffix}")
+    # Number of audio files should match number of transcriptions
+    assert len(audio_files) == len(transcriptions_df)
+    for f in audio_files:
+        shutil.copy2(f, split_dir)
+
+    return len(audio_files)
+
+
 def main_cli():
     parser = ArgumentParser(description="Create dataset locally.")
-
 
     parser.add_argument("--output_dir", type=str, default="data_new",
                         help="Specify the output directory in which the preprocessed data will be stored.")
@@ -150,10 +205,8 @@ def main_cli():
 
     librispeech_subparser = subparsers.add_parser(LIBRISPEECH_KEY, help="Use the Librispeech ASR English corpus from the Huggingface data repo.")
 
-    buckeye_subparser = subparsers.add_parser(BUCKEYE_KEY, help="Use the Buckeye corpus with pre-defined train/test splits in local files.")
-    parser.add_argument("--train_dir","-r", type=Path, help="Directory containing train data split for Buckeye")
-    parser.add_argument("--dev_dir","-d", type=Path, help="Directory containing validation/dev data split for Buckeye")
-    parser.add_argument("--test_dir","-e", type=Path, help="Directory containing test data split for Buckeye")
+    buckeye_subparser = subparsers.add_parser(BUCKEYE_KEY, help="Use the Buckeye corpus with pre-defined train/test splits in local files. This just turns it into the HuggingFace 'audiofolder' format with IPA transcriptions.")
+    buckeye_subparser.add_argument("--input_dir","-i", type=Path, help="Input directory containing Buckeye corpus divided in 'Train', 'Test', 'Dev' subfolders")
 
 
     args = parser.parse_args()
@@ -161,15 +214,27 @@ def main_cli():
         os.mkdir(args.output_dir)
     stats_file = "{}/presave_trainvalid_stats.tsv".format(args.output_dir)
     with open(stats_file, "w") as f:
-        f.write("lang\ttrain\tvalid\ttime\n")
-    start = time.time()        
-
+        f.write("lang\ttrain\tvalid\ttest\ttime\n")
+    
     # test data split creation
     if args.corpus == BUCKEYE_KEY:
-        # TODO
-        pass
+        start = time.time()
+        sizes = {}
+        for split in ["Train", "Dev", "Test"]:
+            input_split = args.input_dir / split
+            sizes[split] = process_buckeye_subfolder(input_split, args.output_dir, split)
+
+        print("Buckeye\ttrain: {}\tvalid: {}\n".format(len(train), len(valid)))
+        end = time.time()
+        duration = end - start
+        print(f"Elapsed time for Buckeye: {duration}")
+        with open(stats_file, "a") as f:
+            f.write("{}\t{}\t{}\t{}\t{}\n".format("buckeye", sizes["Train"], sizes["Dev"], sizes["Test"], duration))
+        
+        
     elif args.corpus in [COMMONVOICE_KEY, LIBRISPEECH_KEY]:
         for language in args.languages:
+            start = time.time()
             train, valid = load_dataset_by_corpus_and_language(args.corpus, language, args.cache_dir)
         
             # Remove audio column (non-writable to json)
@@ -189,7 +254,7 @@ def main_cli():
             duration = end - start
             print("Elapsed time for {}: {}".format(language, duration))
             with open(stats_file, "a") as f:
-                f.write("{}\t{}\t{}\t{}\n".format(language, len(train), len(valid), duration))
+                f.write("{}\t{}\t{}\t{}\t{}\n".format(language, len(train), len(valid), 0, duration))
 
         # Clear cache
         print("Clearing the cache...")
@@ -197,6 +262,7 @@ def main_cli():
             train.cleanup_cache_files()
             valid.cleanup_cache_files()
         print("Cache cleared")
+
 
 if __name__ == "__main__":
     main_cli()
