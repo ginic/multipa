@@ -159,15 +159,15 @@ def process_buckeye_subfolder(input_directory:Path, output_dir:Path, split:str):
     """
     # Combine orthographic transcriptions, Buckeye and IPA transcriptions
     transcription_file = input_directory / "transcription_data.txt"
-    transcriptions_df = pd.read_csv(transcription_file, sep="\t", usecols=["utterance_id", "duration", "buckeye_transcript"])
+    transcriptions_df = pd.read_csv(transcription_file, sep="\t", header=None, names=["utterance_id", "duration", "buckeye_transcript"])
     orthography_file = input_directory / "orthographic_data.txt"
-    orthography_df = pd.read_csv(orthography_file, sep="\t", usecols=["utterance_id", "duration", "text"]).drop("duration")
-    transcriptions_df = transcriptions_df.join(orthography_df, on="utterance_id")
+    orthography_df = pd.read_csv(orthography_file, sep="\t", header=None, names=["utterance_id", "duration", "text"]).drop(columns="duration")
+    transcriptions_df = transcriptions_df.join(orthography_df.set_index("utterance_id"), on="utterance_id")
     transcriptions_df["ipa"] = transcriptions_df["buckeye_transcript"].apply(buckeye_to_ipa)
 
     # The file paths need to be relative to the parent folder for Hugging face    
     split_dir = output_dir / split
-    split_dir.mkdir(parents=True)    
+    split_dir.mkdir(exist_ok=True)    
     audio_suffix = ".wav"
     transcriptions_df["file"] = transcriptions_df["utterance_id"].apply(lambda x: resolve_filepath(x, audio_suffix, split_dir))
 
@@ -176,7 +176,7 @@ def process_buckeye_subfolder(input_directory:Path, output_dir:Path, split:str):
     transcriptions_df.to_csv(output_dir / f"{split}.csv", index=False)
 
     # Copy audio to destination folder
-    audio_files = input_directory.glob(f"*{audio_suffix}")
+    audio_files = list(input_directory.glob(f"*{audio_suffix}"))
     # Number of audio files should match number of transcriptions
     assert len(audio_files) == len(transcriptions_df)
     for f in audio_files:
@@ -188,7 +188,7 @@ def process_buckeye_subfolder(input_directory:Path, output_dir:Path, split:str):
 def main_cli():
     parser = ArgumentParser(description="Create dataset locally.")
 
-    parser.add_argument("--output_dir", type=str, default="data_new",
+    parser.add_argument("--output_dir", type=Path, default="data_new",
                         help="Specify the output directory in which the preprocessed data will be stored.")
     parser.add_argument("--num_proc", type=int, default=1,
                         help="Specify the number of cores to use for multiprocessing. The default is set to 1 (no multiprocessing).")
@@ -206,12 +206,11 @@ def main_cli():
     librispeech_subparser = subparsers.add_parser(LIBRISPEECH_KEY, help="Use the Librispeech ASR English corpus from the Huggingface data repo.")
 
     buckeye_subparser = subparsers.add_parser(BUCKEYE_KEY, help="Use the Buckeye corpus with pre-defined train/test splits in local files. This just turns it into the HuggingFace 'audiofolder' format with IPA transcriptions.")
-    buckeye_subparser.add_argument("--input_dir","-i", type=Path, help="Input directory containing Buckeye corpus divided in 'Train', 'Test', 'Dev' subfolders")
+    buckeye_subparser.add_argument("input_dir", type=Path, help="Input directory containing Buckeye corpus divided in 'Train', 'Test', 'Dev' subfolders")
 
 
     args = parser.parse_args()
-    if not os.path.exists(args.output_dir):
-        os.mkdir(args.output_dir)
+    args.output_dir.mkdir(exist_ok=True)
     stats_file = "{}/presave_trainvalid_stats.tsv".format(args.output_dir)
     with open(stats_file, "w") as f:
         f.write("lang\ttrain\tvalid\ttest\ttime\n")
@@ -224,7 +223,7 @@ def main_cli():
             input_split = args.input_dir / split
             sizes[split] = process_buckeye_subfolder(input_split, args.output_dir, split)
 
-        print("Buckeye\ttrain: {}\tvalid: {}\n".format(len(train), len(valid)))
+        print("Buckeye num files per split:", sizes)
         end = time.time()
         duration = end - start
         print(f"Elapsed time for Buckeye: {duration}")
