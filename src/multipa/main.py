@@ -1,17 +1,15 @@
+import argparse
+import gc
+import json
+from pathlib import Path
+from typing import Dict, List, Optional, Union
+
+from dataclasses import dataclass
 from datasets import load_dataset, Audio, concatenate_datasets
 from transformers import Wav2Vec2CTCTokenizer, Wav2Vec2FeatureExtractor, Wav2Vec2Processor, Wav2Vec2ForCTC, TrainingArguments, Trainer
-import json
 import torch
-from dataclasses import dataclass
-from typing import Any, Dict, List, Optional, Union
-import argparse
-from pathlib import Path
-import gc
 
-import sys
-sys.path.insert(0, "./converter")
-
-from data_utils import filter_low_quality
+from multipa.data_utils import filter_low_quality
 
 def extract_all_chars_ipa(batch: dict) -> dict:
     # Change this function later at some point to create vocabulary based on
@@ -148,7 +146,7 @@ def dataload_test(train_data, train_ipa, valid_data, valid_ipa):
             ipa_filename = valid_ipa[j]["path"].split("/")[-1]
             assert filename == ipa_filename
 
-if __name__ == "__main__":
+def main_cli():
     # Arguments
     parser = argparse.ArgumentParser(description="Specify languages to use and options for each language")
 
@@ -200,7 +198,7 @@ if __name__ == "__main__":
     quality_filter = len(lgx) * [args.quality_filter]
 
     if args.additional_data:
-        from add_forvo import add_language
+        from src.multipa.add_forvo import add_language
     
     train_list = []
     valid_list = []
@@ -499,3 +497,6 @@ if __name__ == "__main__":
     # You also need to save the tokenizer in order to save the model
     tokenizer_ipa.save_pretrained(output_dir)
     # trainer.push_to_hub(repo_name="wav2vec2-ipa")
+
+if __name__ == "__main__": 
+    main_cli()

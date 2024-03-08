@@ -8,15 +8,12 @@ from datasets import load_dataset, Dataset
 from epitran import Epitran
 import pandas as pd
 
-import sys
-sys.path.insert(0, "./converter")
-
-from japanese_to_ipa import Japanese2IPA
-from maltese_to_ipa import Maltese2IPA
-from finnish_to_ipa import Finnish2IPA
-from greek_to_ipa import Greek2IPA
-from tamil_to_ipa import Tamil2IPA
-from english_to_ipa import English2IPA
+from multipa.convert.japanese_to_ipa import Japanese2IPA
+from multipa.convert.maltese_to_ipa import Maltese2IPA
+from multipa.convert.finnish_to_ipa import Finnish2IPA
+from multipa.convert.greek_to_ipa import Greek2IPA
+from multipa.convert.tamil_to_ipa import Tamil2IPA
+from multipa.convert.english_to_ipa import English2IPA
 
 # Constant corpus identifier options
 LIBRISPEECH_KEY = "librispeech"
@@ -24,36 +21,10 @@ COMMONVOICE_KEY = "commonvoice"
 BUCKEYE_KEY = "buckeye"
 
 
-parser = ArgumentParser(description="Create dataset locally.")
-
-
-parser.add_argument("--output_dir", type=str, default="data_new",
-                    help="Specify the output directory in which the preprocessed data will be stored.")
-parser.add_argument("--num_proc", type=int, default=1,
-                    help="Specify the number of cores to use for multiprocessing. The default is set to 1 (no multiprocessing).")
-parser.add_argument("--clear_cache", action="store_true",
-                    help="Use this option if you want to clear the dataset cache after loading to prevent memory from crashing.")
-parser.add_argument("--cache_dir", type=str, default="~/.cache/huggingface/datasets",
-                    help="Specify the cache directory's path if you choose to clear the cache.")
-
-subparsers = parser.add_subparsers(help="Specify which corpus you'll be using", dest="corpus")
-
-comm_voice_subparser = subparsers.add_parser(COMMONVOICE_KEY, help="Use the Common Voice corpus version 11 from the Huggingface data repo.")
-comm_voice_subparser.add_argument("-l", "--languages", nargs="+", default=["ja", "pl", "mt", "hu", "fi", "el", "ta"],
-                    help="Specify the languages to include in the test dataset.")
-
-librispeech_subparser = subparsers.add_parser(LIBRISPEECH_KEY, help="Use the Librispeech ASR English corpus from the Huggingface data repo.")
-
-buckeye_subparser = subparsers.add_parser(BUCKEYE_KEY, help="Use the Buckeye corpus with pre-defined train/test splits in local files.")
-parser.add_argument("--train_dir","-r", type=Path, help="Directory containing train data split for Buckeye")
-parser.add_argument("--dev_dir","-d", type=Path, help="Directory containing validation/dev data split for Buckeye")
-parser.add_argument("--test_dir","-e", type=Path, help="Directory containing test data split for Buckeye")
-
-
-args = parser.parse_args()
-
-
 def transliterate(sample: dict):
+    """Performs transliteration for data from CommonVoice or LibriSpeech. 
+    Which corpus is automatically determined using which keys are present in the sample dict.
+    """
     # Dataset is librispeech_asr
     if "chapter_id" in sample:
         lang = "en"
@@ -158,8 +129,34 @@ def load_dataset_by_corpus_and_language(corpus, language, cache_dir):
     return train, valid
 
 
-# Dataset
-if __name__ == "__main__":
+def main_cli():
+    parser = ArgumentParser(description="Create dataset locally.")
+
+
+    parser.add_argument("--output_dir", type=str, default="data_new",
+                        help="Specify the output directory in which the preprocessed data will be stored.")
+    parser.add_argument("--num_proc", type=int, default=1,
+                        help="Specify the number of cores to use for multiprocessing. The default is set to 1 (no multiprocessing).")
+    parser.add_argument("--clear_cache", action="store_true",
+                        help="Use this option if you want to clear the dataset cache after loading to prevent memory from crashing.")
+    parser.add_argument("--cache_dir", type=str, default="~/.cache/huggingface/datasets",
+                        help="Specify the cache directory's path if you choose to clear the cache.")
+
+    subparsers = parser.add_subparsers(help="Specify which corpus you'll be using", dest="corpus")
+
+    comm_voice_subparser = subparsers.add_parser(COMMONVOICE_KEY, help="Use the Common Voice corpus version 11 from the Huggingface data repo.")
+    comm_voice_subparser.add_argument("-l", "--languages", nargs="+", default=["ja", "pl", "mt", "hu", "fi", "el", "ta"],
+                        help="Specify the languages to include in the test dataset.")
+
+    librispeech_subparser = subparsers.add_parser(LIBRISPEECH_KEY, help="Use the Librispeech ASR English corpus from the Huggingface data repo.")
+
+    buckeye_subparser = subparsers.add_parser(BUCKEYE_KEY, help="Use the Buckeye corpus with pre-defined train/test splits in local files.")
+    parser.add_argument("--train_dir","-r", type=Path, help="Directory containing train data split for Buckeye")
+    parser.add_argument("--dev_dir","-d", type=Path, help="Directory containing validation/dev data split for Buckeye")
+    parser.add_argument("--test_dir","-e", type=Path, help="Directory containing test data split for Buckeye")
+
+
+    args = parser.parse_args()
     if not os.path.exists(args.output_dir):
         os.mkdir(args.output_dir)
     stats_file = "{}/presave_trainvalid_stats.tsv".format(args.output_dir)
@@ -200,3 +197,6 @@ if __name__ == "__main__":
             train.cleanup_cache_files()
             valid.cleanup_cache_files()
         print("Cache cleared")
+
+if __name__ == "__main__":
+    main_cli()
