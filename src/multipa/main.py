@@ -10,6 +10,7 @@ from transformers import Wav2Vec2CTCTokenizer, Wav2Vec2FeatureExtractor, Wav2Vec
 import torch
 
 from multipa.data_utils import filter_low_quality
+#from multipa.add_forvo import add_language
 
 def extract_all_chars_ipa(batch: dict) -> dict:
     # Change this function later at some point to create vocabulary based on
@@ -18,7 +19,7 @@ def extract_all_chars_ipa(batch: dict) -> dict:
     vocab = list(set(all_text))
     return {"vocab": [vocab], "all_text": [all_text]}
 
-def prepare_dataset_ipa(batch: dict) -> dict:
+def prepare_dataset_ipa(batch: dict, processor_ipa:Wav2Vec2Processor) -> dict:
     audio = batch["audio"]
 
     # batched output is unbatched
@@ -124,10 +125,10 @@ def remove_space(batch: dict) -> dict:
     batch["ipa"] = ipa
     return batch
 
-def dataload_test(train_data, train_ipa, valid_data, valid_ipa):
+def dataload_test(train_data, train_ipa, valid_data, valid_ipa, language):
     assert len(train_data) == len(train_ipa), print("Length of train_data and train_ipa does not match")
     assert len(valid_data) == len(valid_ipa), print("Length of valid_data and valid_ipa does not match")
-    if l == "en":
+    if language == "en":
         for j in range(len(train_data)):
             filename = train_data[j]["file"]
             ipa_filename = train_ipa[j]["file"]
@@ -150,43 +151,67 @@ def main_cli():
     # Arguments
     parser = argparse.ArgumentParser(description="Specify languages to use and options for each language")
 
+
+    # TODO Relevant only for Common Voice
     parser.add_argument("-l", "--languages", nargs="*", type=str, required=True,
                         help="Specify language code (split by space). Typically ISO639-1, or ISO639-2 if not found in ISO639-1.")
+    
+    # TODO Needs to be a list only for Common Voice, for Buckeye and Librispeech can be just one value
     parser.add_argument("-tr", "--train_samples", nargs="*", type=int,
                         help="Specify the number of samples to be used as the training data for each language." \
                         "For example, if you want to use 1000, 2000, 3000 training samples for Japanese, Polish," \
                         "and Maltese, then specify as -l ja pl mt -tr 1000 2000 3000." \
                         "You can type an irrationally large number to pick up the maximum value.")
+    
+    # TODO Needs to be a list only for Common Voice, for Buckeye and Librispeech can be just one value
     parser.add_argument("-te", "--test_samples", nargs="*", type=int,
                         help="Specify the number of samples to be used as the test data for each language." \
                         "For example, if you want to use 1000, 2000, 3000 test samples for Japanese, Polish," \
                         "and Maltese, then specify as -l ja pl mt -tr 1000 2000 3000." \
                         "You can type an irrationally large number to pick up the maximum value.")
+
+    # TODO Relevant only for common voice
     parser.add_argument("-qf", "--quality_filter", nargs="*", type=bool, default=True,
                         help="Specify if you want to remove low quality audio (at least having 1 down vote) from the dataset." \
                         "True if you want to, False if you do not want to.")
-    parser.add_argument("-a", "--additional_data", nargs=1, type=bool, default=False, 
-                        help="Specify if you want to use additional data fetched from Forvo.")
+    
+    
+    # TODO This suffix is doing a lot of things - maybe simplify or break into multiple args
     parser.add_argument("-s", "--suffix", type=str, default="",
                         help="Specify a suffix to identify your training. This suffix will be added to the checkpoint file directory.")
-    parser.add_argument("-ns", "--no_space", type=bool, default=False,
-                        help="Set True if you want to remove spaces from the training and test data.")
-    parser.add_argument("-v", "--vocab_file", type=str,
-                        help="Specify the vocab file name to be created", required=True)
+    
+    # TODO This is a bit confusing, but it's basically reading the train/test splits from the preprocessing output. Might not be necessary for Buckeye
     parser.add_argument("-dd", "--data_dir", type=str, default="data_new/",
                         help="Specify the directory path for the training/validation data files." \
                         "Default is set to `data_new/`, which stores the data from the as-of-now newest" \
                         "`mozilla-foundation/common_voice_11_0`.")
+    
+    # TODO Can become subparser
     parser.add_argument("-ds", "--dataset", type=str, default="mozilla-foundation/common_voice_11_0",
                         help="Specify the dataset name. Default is set to" \
                         "`mozilla-foundation/common_voice_11_0`.")
+    
+    # TODO Unclear if needed for buckeye
+    parser.add_argument("--cache_dir", type=str, default="~/.cache/huggingface/datasets",
+                        help="Specify the cache directory's path if you choose to load dataset from non-default cache.")
+
+
+    # Necessary across all datasets
     parser.add_argument("-e", "--num_train_epochs", type=int, default=30,
                         help="Specify the number of train epochs. By default it's set to 30.")
     parser.add_argument("--num_proc", type=int, default=8,
                         help="Specify the number of CPUs for preprocessing. Default set to 24.")
-    parser.add_argument("--cache_dir", type=str, default="~/.cache/huggingface/datasets",
-                        help="Specify the cache directory's path if you choose to load dataset from non-default cache.")
+
     parser.add_argument("-ml", "--max-length", type=int, default=12, help="Maximum audio length of training & validation samples in seconds")
+    parser.add_argument("-ns", "--no_space", type=bool, default=False,
+                        help="Set True if you want to remove spaces from the training and test data.")
+    parser.add_argument("-v", "--vocab_file", type=str,
+                        help="Specify the vocab file name to be created", required=True)    
+    # Ignore Forvo data for now
+    # parser.add_argument("-a", "--additional_data", nargs=1, type=bool, default=False, 
+    #                    help="Specify if you want to use additional data fetched from Forvo.")
+
+    
     args = parser.parse_args()
     lgx = args.languages
     suffix = args.suffix
@@ -195,10 +220,7 @@ def main_cli():
     assert len(args.test_samples) <= len(lgx), "`test_samples` argument is longer than the number of languages"
     
     # Use the same quality filter setting for all languages
-    quality_filter = len(lgx) * [args.quality_filter]
-
-    if args.additional_data:
-        from src.multipa.add_forvo import add_language
+    quality_filter = len(lgx) * [args.quality_filter]       
     
     train_list = []
     valid_list = []
@@ -210,17 +232,17 @@ def main_cli():
         train_sample = args.train_samples[i]
         valid_sample = args.test_samples[i]
         q_filter = quality_filter[i]
-        if l == "en":
-            q_filter = False
 
-        # Get preprocessed training dataset with IPA
+         # Get preprocessed training dataset with IPA
         train_ipa = load_dataset("json",
                                  data_files=str(Path(args.data_dir) / f"{l}_train.json"),
                                  split="train")
         valid_ipa = load_dataset("json",
                                  data_files=str(Path(args.data_dir) / f"{l}_valid.json"),
                                  split="train")
+
         if l == "en":
+            q_filter = False
             # Librispeech's file name column is "file"
             train_ipa = train_ipa.sort("file")
             valid_ipa = valid_ipa.sort("file")
@@ -270,7 +292,7 @@ def main_cli():
             valid_data = valid_data.filter(lambda batch: "ச" not in batch["sentence"])
 
         # tests
-        dataload_test(train_data, train_ipa, valid_data, valid_ipa)
+        dataload_test(train_data, train_ipa, valid_data, valid_ipa, l)
 
         train_ipa = [train_ipa[i]["ipa"] for i in range(len(train_ipa))]
         valid_ipa = [valid_ipa[i]["ipa"] for i in range(len(valid_ipa))]
@@ -304,13 +326,14 @@ def main_cli():
     common_voice_valid = concatenate_common_voice(valid_list)
     print("Concatenation done")
 
-    if args.additional_data:
-        print("Concatenating the additional data from Forvo...")
-        new_ds = add_language() # -> dict
-        new_ds = new_ds.train_test_split(test_size=0.2)
-        common_voice_train = concatenate_datasets([common_voice_train, new_ds["train"]])
-        common_voice_valid = concatenate_datasets([common_voice_valid, new_ds["test"]])
-        print("Concatenated additional data from Forvo")
+    # This doesn't work right now and we don't have access to the Forvo data, so I'm commenting out
+    # if args.additional_data:
+    #     print("Concatenating the additional data from Forvo...")
+    #     new_ds = add_language() # -> dict
+    #     new_ds = new_ds.train_test_split(test_size=0.2)
+    #     common_voice_train = concatenate_datasets([common_voice_train, new_ds["train"]])
+    #     common_voice_valid = concatenate_datasets([common_voice_valid, new_ds["test"]])
+    #     print("Concatenated additional data from Forvo")
 
     # Remove unnecessary columns
     unnecessary_columns = ["accent", "age", "client_id", "down_votes", "gender", "locale", "segment", "up_votes",
@@ -413,13 +436,15 @@ def main_cli():
 
     print("Preprocessing the dataset...")
     # Try removing `num_proc=` if you encounter any errors while running this part
+    processor_func = lambda x: prepare_dataset_ipa(x, processor_ipa)
+
     common_voice_train = common_voice_train.map(
-        prepare_dataset_ipa,
+        processor_func,
         remove_columns=common_voice_train.column_names,
         num_proc=args.num_proc
     )
     common_voice_valid = common_voice_valid.map(
-        prepare_dataset_ipa,
+        processor_func,
         remove_columns=common_voice_valid.column_names,
         num_proc=args.num_proc
     )
