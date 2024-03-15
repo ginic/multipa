@@ -7,6 +7,16 @@ import random
 import epitran
 import re
 
+# Constant corpus identifier options
+LIBRISPEECH_KEY = "librispeech"
+COMMONVOICE_KEY = "commonvoice"
+BUCKEYE_KEY = "buckeye"
+
+
+class DataLoadError(Exception):
+    pass
+
+
 def selection(dataset, selectsize: int):
     trainsize = len(dataset)
     samples = sampling(trainsize, selectsize)

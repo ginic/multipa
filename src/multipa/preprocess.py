@@ -17,11 +17,7 @@ from multipa.converter.tamil_to_ipa import Tamil2IPA
 from multipa.converter.english_to_ipa import English2IPA
 from multipa.converter.buckeye_to_ipa import buckeye_to_ipa
 
-# Constant corpus identifier options
-LIBRISPEECH_KEY = "librispeech"
-COMMONVOICE_KEY = "commonvoice"
-BUCKEYE_KEY = "buckeye"
-
+from multipa.data_utils import BUCKEYE_KEY, COMMONVOICE_KEY, LIBRISPEECH_KEY
 
 def transliterate(sample: dict):
     """Performs transliteration for data from CommonVoice or LibriSpeech. 
@@ -232,7 +228,13 @@ def main_cli():
         
         
     elif args.corpus in [COMMONVOICE_KEY, LIBRISPEECH_KEY]:
-        for language in args.languages:
+        if args.corpus == COMMONVOICE_KEY:
+            languages = args.languages
+        else:
+            # Hard code Librispeech as English
+            languages = ["en"]
+            
+        for language in languages:
             start = time.time()
             train, valid = load_dataset_by_corpus_and_language(args.corpus, language, args.cache_dir)
         
