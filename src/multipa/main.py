@@ -1,5 +1,6 @@
 import argparse
 import gc
+import importlib.resources
 import json
 from pathlib import Path
 from typing import Dict, List, Optional, Union
@@ -11,24 +12,11 @@ import torch
 
 from multipa.data_utils import filter_low_quality, BUCKEYE_KEY, COMMONVOICE_KEY, LIBRISPEECH_KEY, DataLoadError
 
+# Extra vocabulary elements for tokenization
+UNKNOWN_TOKEN = "[UNK]"
+PADDING_TOKEN = "[PAD]"
+
 #from multipa.add_forvo import add_language
-
-def extract_all_chars_ipa(batch: dict) -> dict:
-    # Change this function later at some point to create vocabulary based on
-    # phonemes, not on characters
-    all_text = " ".join(batch["ipa"])
-    vocab = list(set(all_text))
-    return {"vocab": [vocab], "all_text": [all_text]}
-
-def prepare_dataset_ipa(batch: dict, processor_ipa:Wav2Vec2Processor) -> dict:
-    audio = batch["audio"]
-
-    # batched output is unbatched
-    batch["input_values"] = processor_ipa(audio["array"],
-                                          sampling_rate=audio["sampling_rate"]).input_values[0]
-    with processor_ipa.as_target_processor():
-        batch["labels"] = processor_ipa(batch["ipa"]).input_ids
-    return batch
 
 @dataclass
 class DataCollatorCTCWithPadding:
@@ -91,6 +79,22 @@ class DataCollatorCTCWithPadding:
 
         return batch
 
+def extract_all_chars_ipa(batch: dict) -> dict:
+    # Change this function later at some point to create vocabulary based on
+    # phonemes, not on characters
+    all_text = " ".join(batch["ipa"])
+    return set(all_text)
+
+def prepare_dataset_ipa(batch: dict, processor_ipa:Wav2Vec2Processor) -> dict:
+    audio = batch["audio"]
+
+    # batched output is unbatched
+    batch["input_values"] = processor_ipa(audio["array"],
+                                          sampling_rate=audio["sampling_rate"]).input_values[0]
+    with processor_ipa.as_target_processor():
+        batch["labels"] = processor_ipa(batch["ipa"]).input_ids
+    return batch
+
 def remove_long_data(dataset, max_seconds=12):
     # convert pyarrow table to pandas
     dftest = dataset.to_pandas()
@@ -126,27 +130,34 @@ def remove_space(batch: dict) -> dict:
     batch["ipa"] = ipa
     return batch
 
-def dataload_test(train_data, train_ipa, valid_data, valid_ipa, language):
-    assert len(train_data) == len(train_ipa), print("Length of train_data and train_ipa does not match")
-    assert len(valid_data) == len(valid_ipa), print("Length of valid_data and valid_ipa does not match")
-    if language == "en":
-        for j in range(len(train_data)):
-            filename = train_data[j]["file"]
-            ipa_filename = train_ipa[j]["file"]
-            assert filename == ipa_filename
-        for j in range(len(valid_ipa)):
-            filename = valid_data[j]["file"]
-            ipa_filename = valid_ipa[j]["file"]
-            assert filename == ipa_filename
-    else:
-        for j in range(len(train_data)):
-            filename = train_data[j]["path"].split("/")[-1]
-            ipa_filename = train_ipa[j]["path"].split("/")[-1]
-            assert filename == ipa_filename
-        for j in range(len(valid_data)):
-            filename = valid_data[j]["path"].split("/")[-1]
-            ipa_filename = valid_ipa[j]["path"].split("/")[-1]
-            assert filename == ipa_filename
+def create_vocabulary(*datasets):
+    """Determines the vocabulary of IPA characters needed for the model.
+
+    Returns:
+        dict: vocab -> index
+    """
+    vocab_set = set()
+    for d in datasets:
+        d_vocab = d.map(
+            extract_all_chars_ipa,
+            batched=True,
+            batch_size=-1,
+            keep_in_memory=True,
+            remove_columns=d.column_names
+        )
+        vocab_set = vocab_set | d_vocab
+
+    # Add in data from resources file
+    all_vocab_file = importlib.resources.files("multipa.resources").joinpath("full_vocab_ipa.txt")
+    with importlib.resources.as_file(all_vocab_file) as f:
+        new_vocab = set([l.strip() for l in f.read_text().splitlines()])
+        vocab_set = vocab_set | new_vocab
+    
+    vocab_dict_ipa = {v: k for k, v in enumerate(vocab_set)}
+    vocab_dict_ipa[UNKNOWN_TOKEN] = len(vocab_dict_ipa)
+    vocab_dict_ipa[PADDING_TOKEN] = len(vocab_dict_ipa)
+    return vocab_dict_ipa
+
 
 def validate_dataset_files_match(raw_data, ipa_data, key:str, is_check_basename:bool=False):
     if len(raw_data) != len(ipa_data):
@@ -187,6 +198,25 @@ def join_column(left_dataset, right_dataset, on_key:str, right_col:str, is_check
 
 def load_common_voice_split(language: str, quality_filter: bool, split:str, huggingface_split:str, data_dir:str, json_filename:str, 
                             cache_dir:str, num_proc:int, dataset_name:str="mozilla-foundation/common_voice_11_0"):
+    """Loads the specified split of Common Voice dataset, reading IPA transcriptions for a local JSON file. 
+    Optionally filter to only include high quality data from Common Voice. 
+    Always does special language specific filtering for Tamil, language="ta"
+
+    Args:
+        language (str): 2-letter language ISO code
+        quality_filter (bool): Set to true to remove low quality transcriptions with at least one downvote
+        split (str): Data split name to read from the JSON file
+        huggingface_split (str): Data split name for loading directly from Huggingface
+        data_dir (str): Path to directory containing the json dataset
+        json_filename (str): Json filename (basename only). Should be in data_dir.
+        cache_dir (str): Cache directory for Huggingface
+        num_proc (int): number of threads when loading dataset from Huggingface
+
+        dataset_name (str, optional): _description_. Defaults to "mozilla-foundation/common_voice_11_0".
+
+    Returns:
+        _type_: _description_
+    """
     ipa_dataset = load_dataset("json",
                                 data_files=str(Path(data_dir) / json_filename),
                                 split=split)
@@ -208,19 +238,19 @@ def load_common_voice_split(language: str, quality_filter: bool, split:str, hugg
     return full_dataset                                
 
 
-
-def load_librispeech_split(split:str, huggingface_split:str, data_dir:str, json_filename:str, cache_dir:str, num_proc:int, dataset_name:str = "librispeech_asr"):
+def load_librispeech_split(split:str, huggingface_split:str, data_dir:str, json_filename:str, cache_dir:str, 
+                           num_proc:int, dataset_name:str = "librispeech_asr"):
     """Load a full split of the Librispeech dataset from Huggingface, reading IPA transcriptions from a local JSON file. 
     Rename columns to match Common Voice format, so training and validation code can be shared.
 
     Args:
-        split (str): _description_
-        huggingface_split (str): _description_
-        data_dir (str): _description_
-        json_filename (str): _description_
-        cache_dir (str): _description_
-        num_proc (int): _description_
-        dataset_name (str): _description_
+        split (str): Name fo the data split for reading IPA data from json dataset format - should be either "train" or "valid"
+        huggingface_split (str): Name of the data split to download from Huggingface. 
+        data_dir (str): Path to directory containing the json dataset
+        json_filename (str): Json filename (basename only). Should be in data_dir.
+        cache_dir (str): Cache directory for Huggingface
+        num_proc (int): number of threads when loading dataset from Huggingface
+        dataset_name (str): Name of the dataset to load from Huggingface, defaults to "librispeech_asr"
     """
     # Librispeech starts with the audio path in "file" column and transcription in "text" column
     # You need to finish with audio path in "path" and transcription "sentence"
@@ -252,13 +282,10 @@ def main_cli():
 
     parser.add_argument("-ml", "--max-length", type=int, default=12, help="Maximum audio length of training & validation samples in seconds")
     parser.add_argument("-ns", "--no_space", type=bool, default=False,
-                        help="Set True if you want to remove spaces from the training and test data.")
-    parser.add_argument("-v", "--vocab_file", type=str,
-                        help="Specify the vocab file name to be created", required=True)    
-    
-    # TODO This suffix is doing a lot of things - maybe simplify or break into multiple args
-    parser.add_argument("-s", "--suffix", type=str, default="",
-                        help="Specify a suffix to identify your training. This suffix will be added to the checkpoint file directory.")
+                        help="Set True if you want to remove spaces from the training and test data.") 
+    parser.add_argument("-o", "--output_dir", type=str,
+                        help="Specify the directory to save files for vocab, stats and trained models.")
+
     
     # TODO This is a bit confusing, but it's basically reading the train/test splits from the preprocessing output. Might not be necessary for Buckeye
     parser.add_argument("-dd", "--data_dir", type=str, default="data_new",
@@ -321,20 +348,18 @@ def main_cli():
         
     args = parser.parse_args()
     
-    lgx = args.languages
-    suffix = args.suffix
-    
-    
-    # Use the same quality filter setting for all languages
-    
-
-    # Data loading
-    stats_file = "stats_train_valid_{}.txt".format(suffix)
+    output_dir = Path(args.output_dir)
+    output_dir.mkdir(parents=True)
+        
+    # Set up corpus stats tracking file
+    stats_file = output_dir / "stats_train_valid.txt"
     with open(stats_file, "w") as f:
-        f.write("lang train valid\n")
+        f.write("corpus lang train valid\n")
 
     if args.corpus == LIBRISPEECH_KEY:
-        train_data = load_librispeech_split("train", "train.clean.100", args.data_dir, "en_train.json")
+        dataset_name = "librispeech_asr"
+        train_data = load_librispeech_split("train", "train.clean.100", args.data_dir, "en_train.json", 
+                                            args.cache_dir, args.num_proc, dataset_name)
         valid_data = load_librispeech_split("valid", "validation.clean", args.data_dir, "en_valid.json")
         # Clipping to the specified sample size using datasets's Dataset.select()
         train_limit = min(args.train_samples, len(train_data))
@@ -342,24 +367,28 @@ def main_cli():
         full_train_data = train_data.select(range(train_limit))
         full_valid_data = valid_data.select(range(valid_limit))
 
+        with open(stats_file, "a") as f:
+            f.write(f"{dataset_name} en {len(train_data)} {len(valid_data)}\n")
+
     elif args.corpus == BUCKEYE_KEY: 
         # TODO
         pass
     
-    elif args.corpus == COMMONVOICE_KEY:   
+    elif args.corpus == COMMONVOICE_KEY:
+        lgx = args.languages   
         assert len(args.train_samples) <= len(lgx), "`train_samples` argument is longer than the number of languages"
         assert len(args.val_samples) <= len(lgx), "`val_samples` argument is longer than the number of languages"
      
         train_list = []
         valid_list = []
-            
+        dataset_name = "mozilla-foundation/common_voice_11_0"
         for i, lang in enumerate(lgx):
             train_sample = args.train_samples[i]
             valid_sample = args.val_samples[i]
             train_data = load_common_voice_split(lang, args.quality_filter, "train", "train", 
-                                                 args.data_dir, f"{lang}_train.json", args.cache_dir, args.num_proc)
+                                                 args.data_dir, f"{lang}_train.json", args.cache_dir, args.num_proc, dataset_name)
             valid_data = load_common_voice_split(lang, args.quality_filter, "valid", "validation", 
-                                                 args.data_dir, f"{lang}_valid.json", args.cache_dir, args.num_proc)
+                                                 args.data_dir, f"{lang}_valid.json", args.cache_dir, args.num_proc, dataset_name)
 
 
             # Clipping to the specified sample size using datasets's Dataset.select()
@@ -372,7 +401,7 @@ def main_cli():
             valid_list.append(valid_data)
 
             with open(stats_file, "a") as f:
-                f.write(lang + " " + str(len(train_data)) + " " + str(len(valid_data))  + "\n")
+                f.write(f"{dataset_name} {lang} {len(train_data)} {len(valid_data)}\n")
         
         # Concatenate the languages
         print("Concatenating datasets for each language...")
@@ -390,7 +419,8 @@ def main_cli():
     #     print("Concatenated additional data from Forvo")
 
     # Remove unnecessary columns
-    unnecessary_columns = ["accent", "age", "client_id", "down_votes", "gender", "locale", "segment", "up_votes",
+    unnecessary_columns = [
+        "accent", "age", "client_id", "down_votes", "gender", "locale", "segment", "up_votes", # for Common Voice
         "speaker_id", "chapter_id", "id" #for librispeech
         ]
     columns_to_remove = set(unnecessary_columns).intersection(full_train_data.column_names)
@@ -415,55 +445,22 @@ def main_cli():
 
     # Preprocessing 
     print("Creating vocabulary...")
-    vocab_train_ipa = full_train_data.map(
-        extract_all_chars_ipa,
-        batched=True,
-        batch_size=-1,
-        keep_in_memory=True,
-        remove_columns=full_train_data.column_names
-    )
-    vocab_valid_ipa = full_valid_data.map(
-        extract_all_chars_ipa,
-        batched=True,
-        batch_size=-1,
-        keep_in_memory=True,
-        remove_columns=full_train_data.column_names
-    )
-    vocab_list_ipa = list(
-        set(vocab_train_ipa["vocab"][0]) | set(vocab_valid_ipa["vocab"][0])
-    )
-    # add multiletter IPAs and other IPAs
-    with open("full_vocab_ipa.txt", "r") as f:
-        lines = f.readlines()
-        ipa_all = set([l.strip() for l in lines])
-    vocab_list_ipa = set(vocab_list_ipa) | ipa_all
-    vocab_list_ipa = list(vocab_list_ipa)
-    vocab_dict_ipa = {v: k for k, v in enumerate(vocab_list_ipa)}
-
-    print("Vocab created. Details:")
-    print("vocab_dict_ipa: {}".format(len(vocab_dict_ipa)))
-
-    # Preprocessing necessary for CTC
-    # Add [UNK], [PAD]
-    print("Adding [UNK] and [PAD]...")
-    vocab_dict_ipa["[UNK]"] = len(vocab_dict_ipa)
-    vocab_dict_ipa["[PAD]"] = len(vocab_dict_ipa)
-    print("[UNK] and [PAD] added")
+    vocab_dict_ipa = create_vocabulary(full_train_data, full_valid_data)
 
     print("Writing vocab json files...")
     # Don't forget to change the file name when you use different languages,
     # otherwise the vocab file will be lost
-    # filename = "vocab_ipa_{}.json".format("".join(lgx))
-    with open(args.vocab_file, 'w') as vocab_file_ipa:
+    vocab_file = output_dir / f"{args.corpus}_ipa_vocab.json"
+    with open(vocab_file, 'w') as vocab_file_ipa:
         json.dump(vocab_dict_ipa, vocab_file_ipa)
     print("Vocab json files created")
 
     # Create Tokenizers
     print("Creating Tokenizers...")
     # Be careful to load the correct vocab file.
-    tokenizer_ipa = Wav2Vec2CTCTokenizer("./{}".format(args.vocab_file),
-                                         unk_token="[UNK]",
-                                         pad_token="[PAD]",
+    tokenizer_ipa = Wav2Vec2CTCTokenizer(vocab_file,
+                                         unk_token=UNKNOWN_TOKEN,
+                                         pad_token=PADDING_TOKEN,
                                          word_delimiter_token="|")
     print("Tokenizers created") 
 
@@ -491,7 +488,6 @@ def main_cli():
     print("Preprocessing the dataset...")
     # Try removing `num_proc=` if you encounter any errors while running this part
     processor_func = lambda x: prepare_dataset_ipa(x, processor_ipa)
-
     full_train_data = full_train_data.map(
         processor_func,
         remove_columns=full_train_data.column_names,
@@ -534,9 +530,7 @@ def main_cli():
     model.freeze_feature_encoder()
     print("Feature extractor frozen")
 
-    output_dir = "./wav2vec2-large-xlsr-{}-ipa".format("".join(lgx))
-    if suffix:
-        output_dir += suffix
+    model_dir = output_dir / "wav2vec2-large-xlsr-{}-ipa".format("".join(args.corpus))
 
     print("Running garbage collection before training")
     gc.collect()
@@ -545,7 +539,7 @@ def main_cli():
     # Training
     print("Beginning the training...") 
     training_args = TrainingArguments(
-        output_dir=output_dir,
+        output_dir=model_dir,
         group_by_length=True,
         per_device_train_batch_size=2,
         gradient_accumulation_steps=4,
@@ -574,7 +568,7 @@ def main_cli():
     trainer.save_state()
     trainer.save_model()
     # You also need to save the tokenizer in order to save the model
-    tokenizer_ipa.save_pretrained(output_dir)
+    tokenizer_ipa.save_pretrained(model_dir)
     # trainer.push_to_hub(repo_name="wav2vec2-ipa")
 
 if __name__ == "__main__": 

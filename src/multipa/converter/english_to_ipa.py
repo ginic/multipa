@@ -18,7 +18,7 @@ def make_prondict(filename: str) -> dict:
 
 class English2IPA:
 
-    
+    # TODO Use cmudict from file resources
     def __init__(self, keep_suprasegmental = False, filename = "cmudict-0.7b-ipa.txt"):
         """_summary_
 
