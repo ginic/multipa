@@ -534,7 +534,9 @@ def main_cli():
         attention_dropout=0.1,
         hidden_dropout=0.1,
         feat_proj_dropout=0.0,
+        # TODO Look into masking in this model. How does it work, what's the trade-off in tweaking the probability and length
         mask_time_prob=0.05,
+        mask_time_length=1, # updated to avoid ValueError: `mask_length` has to be smaller than `sequence_length`, but got `mask_length`: 10 and `sequence_length`: 9`
         layerdrop=0.1,
         ctc_loss_reduction="mean",
         pad_token_id=processor_ipa.tokenizer.pad_token_id,
@@ -562,7 +564,7 @@ def main_cli():
         gradient_accumulation_steps=4,
         evaluation_strategy="steps",
         num_train_epochs=args.num_train_epochs,
-        fp16=True,
+        #fp16=True, # Can uncomment on CUDA GPU, only needed when training on CPU
         save_steps=100,
         eval_steps=100,
         logging_steps=10,
