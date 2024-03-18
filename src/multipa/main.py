@@ -149,7 +149,7 @@ def create_vocabulary(*datasets):
 
     # Add in data from resources file
     all_vocab_file = importlib.resources.files("multipa.resources").joinpath("full_vocab_ipa.txt")
-    with importlib.resources.as_file(all_vocab_file) as f:
+    with all_vocab_file as f:
         new_vocab = set([l.strip() for l in f.read_text().splitlines()])
         vocab_set = vocab_set | new_vocab
     
@@ -184,6 +184,9 @@ def join_column(left_dataset, right_dataset, on_key:str, right_col:str, is_check
         right_col (str): column to add from right dataset
         is_check_basename (bool): If on_key contains full paths, but you only want to validate the basename matches
         additional_check_col (str|None): If there's an additional column you want to check matches before joining, use this. Check 'sentence' column by default.
+
+    Returns:
+        Huggingface Dataset
     """
     # TODO Better to use SQL style join on file column if Huggingface supports this?
     # Join in IPA data by matching file name
@@ -211,11 +214,10 @@ def load_common_voice_split(language: str, quality_filter: bool, split:str, hugg
         json_filename (str): Json filename (basename only). Should be in data_dir.
         cache_dir (str): Cache directory for Huggingface
         num_proc (int): number of threads when loading dataset from Huggingface
-
         dataset_name (str, optional): _description_. Defaults to "mozilla-foundation/common_voice_11_0".
 
     Returns:
-        _type_: _description_
+        Huggingface Dataset
     """
     ipa_dataset = load_dataset("json",
                                 data_files=str(Path(data_dir) / json_filename),
@@ -269,6 +271,12 @@ def load_librispeech_split(split:str, huggingface_split:str, data_dir:str, json_
     full_dataset = join_column(raw_audio, ipa_dataset, "file", "ipa")
     full_dataset = full_dataset.rename("file", "path")
     return full_dataset
+
+def load_buckeye(corpus_root_dir: str):
+    train_split = load_dataset("audiofolder", data_dir=corpus_root_dir, split="train")
+    valid_split = load_dataset("audiofolder", data_dir=corpus_root_dir, split="validation")
+
+    return train_split, valid_split
     
 
 def main_cli():
@@ -281,14 +289,16 @@ def main_cli():
                         help="Specify the number of CPUs for preprocessing. Default set to 24.")
 
     parser.add_argument("-ml", "--max-length", type=int, default=12, help="Maximum audio length of training & validation samples in seconds")
-    parser.add_argument("-ns", "--no_space", type=bool, default=False,
-                        help="Set True if you want to remove spaces from the training and test data.") 
-    parser.add_argument("-o", "--output_dir", type=str,
+    parser.add_argument("-ns", "--no_space", action='store_true',
+                        help="Use flags remove spaces in IPA transcription.") 
+    parser.add_argument("-o", "--output_dir", type=str, 
                         help="Specify the directory to save files for vocab, stats and trained models.")
+    parser.add_argument("-s", "--suffix", type=str, default="",
+                        help="Optional suffix to use when naming vocab and model folders")
 
     
     # TODO This is a bit confusing, but it's basically reading the train/test splits from the preprocessing output. Might not be necessary for Buckeye
-    parser.add_argument("-dd", "--data_dir", type=str, default="data_new",
+    parser.add_argument("-dd", "--data_dir", type=Path, default="data_new",
                         help="Specify the directory path for the training/validation data files." \
                         "Default is set to `data_new/`, which stores the data from the as-of-now newest" \
                         "`mozilla-foundation/common_voice_11_0`.")
@@ -312,14 +322,12 @@ def main_cli():
     comm_voice_subparser.add_argument("-l", "--languages", nargs="+", type=str, required=True,
                         help="Specify language code (split by space). Typically ISO639-1, or ISO639-2 if not found in ISO639-1.")
     
-    # TODO Needs to be a list only for Common Voice, for Buckeye and Librispeech can be just one value
     comm_voice_subparser.add_argument("-tr", "--train_samples", nargs="+", type=int,
                         help="Specify the number of samples to be used as the training data for each language. " \
                         "For example, if you want to use 1000, 2000, 3000 training samples for Japanese, Polish, " \
                         "and Maltese, then specify as -l ja pl mt -tr 1000 2000 3000." \
                         "You can type an irrationally large number to pick up the maximum value.")
     
-    # TODO Needs to be a list only for Common Voice, for Buckeye and Librispeech can be just one value
     comm_voice_subparser.add_argument("-ve", "--val_samples", nargs="+", type=int,
                         help="Specify the number of samples to be used as the test data for each language. " \
                         "For example, if you want to use 1000, 2000, 3000 test samples for Japanese, Polish, " \
@@ -349,18 +357,19 @@ def main_cli():
     args = parser.parse_args()
     
     output_dir = Path(args.output_dir)
-    output_dir.mkdir(parents=True)
+    output_dir.mkdir(parents=True, exist_ok=True)
         
     # Set up corpus stats tracking file
-    stats_file = output_dir / "stats_train_valid.txt"
+    stats_file = output_dir / f"stats_train_valid{args.suffix}.txt"
     with open(stats_file, "w") as f:
         f.write("corpus lang train valid\n")
 
     if args.corpus == LIBRISPEECH_KEY:
         dataset_name = "librispeech_asr"
-        train_data = load_librispeech_split("train", "train.clean.100", args.data_dir, "en_train.json", 
+        train_data = load_librispeech_split("train", "train.clean.100", args.data_dir, f"en_train{args.suffix}.json", 
                                             args.cache_dir, args.num_proc, dataset_name)
-        valid_data = load_librispeech_split("valid", "validation.clean", args.data_dir, "en_valid.json")
+        valid_data = load_librispeech_split("valid", "validation.clean", args.data_dir, f"en_valid{args.suffix}.json", 
+                                            args.cache_dir, args.num_proc, dataset_name)
         # Clipping to the specified sample size using datasets's Dataset.select()
         train_limit = min(args.train_samples, len(train_data))
         valid_limit = min(args.val_samples, len(valid_data))
@@ -371,8 +380,16 @@ def main_cli():
             f.write(f"{dataset_name} en {len(train_data)} {len(valid_data)}\n")
 
     elif args.corpus == BUCKEYE_KEY: 
-        # TODO
-        pass
+        dataset_name = "buckeye"
+        train_data, valid_data = load_buckeye(args.data_dir)
+        # Clipping to the specified sample size using datasets's Dataset.select()
+        train_limit = min(args.train_samples, len(train_data))
+        valid_limit = min(args.val_samples, len(valid_data))
+        full_train_data = train_data.select(range(train_limit))
+        full_valid_data = valid_data.select(range(valid_limit))
+
+        with open(stats_file, "a") as f:
+            f.write(f"{dataset_name} en {len(train_data)} {len(valid_data)}\n")
     
     elif args.corpus == COMMONVOICE_KEY:
         lgx = args.languages   
@@ -386,9 +403,9 @@ def main_cli():
             train_sample = args.train_samples[i]
             valid_sample = args.val_samples[i]
             train_data = load_common_voice_split(lang, args.quality_filter, "train", "train", 
-                                                 args.data_dir, f"{lang}_train.json", args.cache_dir, args.num_proc, dataset_name)
+                                                 args.data_dir, f"{lang}_train{args.suffix}.json", args.cache_dir, args.num_proc, dataset_name)
             valid_data = load_common_voice_split(lang, args.quality_filter, "valid", "validation", 
-                                                 args.data_dir, f"{lang}_valid.json", args.cache_dir, args.num_proc, dataset_name)
+                                                 args.data_dir, f"{lang}_valid{args.suffix}.json", args.cache_dir, args.num_proc, dataset_name)
 
 
             # Clipping to the specified sample size using datasets's Dataset.select()
@@ -450,7 +467,7 @@ def main_cli():
     print("Writing vocab json files...")
     # Don't forget to change the file name when you use different languages,
     # otherwise the vocab file will be lost
-    vocab_file = output_dir / f"{args.corpus}_ipa_vocab.json"
+    vocab_file = output_dir / f"{args.corpus}_ipa_vocab{args.suffix}.json"
     with open(vocab_file, 'w') as vocab_file_ipa:
         json.dump(vocab_dict_ipa, vocab_file_ipa)
     print("Vocab json files created")
@@ -530,7 +547,7 @@ def main_cli():
     model.freeze_feature_encoder()
     print("Feature extractor frozen")
 
-    model_dir = output_dir / "wav2vec2-large-xlsr-{}-ipa".format("".join(args.corpus))
+    model_dir = output_dir / f"wav2vec2-large-xlsr-{args.corpus}-ipa{args.suffix}"
 
     print("Running garbage collection before training")
     gc.collect()

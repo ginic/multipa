@@ -1,5 +1,4 @@
 from argparse import ArgumentParser
-import os
 from pathlib import Path
 import re
 import shutil
@@ -141,14 +140,16 @@ def resolve_filepath(basename:str, suffix:str, path_prefix:str):
     return str(full_path.with_suffix(suffix))
 
 
-def process_buckeye_subfolder(input_directory:Path, output_dir:Path, split:str):
+def process_buckeye_subfolder(input_directory:Path, output_dir:Path, hugging_face_split:str):
     """Get IPA transcriptions for Buckeye, then write output in the appropriate HuggingFace audiofolder format in output_dir
     Return the number of utterances processed. 
+    Note that Hugging Face is fussy about split names, they have to be one of specific keywords and are case sensitive, 
+    see https://huggingface.co/docs/hub/datasets-file-names-and-splits#keywords. 
 
     Args:
         input_directory (Path): A pre-defined split of the Buckeye corpus containing audio files, transcription_data.txt and orthographic_data.txt
         output_dir (Path): Desired output directory
-        split (str): identifies the data split, e.g. 'train', 'test'
+        hugging_face_split (str): identifies the name of the split for HuggingFace
 
     Returns:
         int: Number of files processed
@@ -162,21 +163,22 @@ def process_buckeye_subfolder(input_directory:Path, output_dir:Path, split:str):
     transcriptions_df["ipa"] = transcriptions_df["buckeye_transcript"].apply(buckeye_to_ipa)
 
     # The file paths need to be relative to the parent folder for Hugging face    
-    split_dir = output_dir / split
-    split_dir.mkdir(exist_ok=True)    
+    output_split_dir = output_dir / hugging_face_split
+    output_split_dir.mkdir(exist_ok=True)    
     audio_suffix = ".wav"
-    transcriptions_df["file"] = transcriptions_df["utterance_id"].apply(lambda x: resolve_filepath(x, audio_suffix, split_dir))
+    transcriptions_df["file_path"] = transcriptions_df["utterance_id"].apply(lambda x: resolve_filepath(x, audio_suffix, output_split_dir))
+    transcriptions_df["file_name"] = transcriptions_df["utterance_id"].apply(lambda x: x + audio_suffix)
 
     # CSV is complete
     # TODO Is it necessary to output JSON here also? 
-    transcriptions_df.to_csv(output_dir / f"{split}.csv", index=False)
+    transcriptions_df.to_csv(output_split_dir / "metadata.csv", index=False)
 
     # Copy audio to destination folder
     audio_files = list(input_directory.glob(f"*{audio_suffix}"))
     # Number of audio files should match number of transcriptions
     assert len(audio_files) == len(transcriptions_df)
     for f in audio_files:
-        shutil.copy2(f, split_dir)
+        shutil.copy2(f, output_split_dir)
 
     return len(audio_files)
 
@@ -215,16 +217,16 @@ def main_cli():
     if args.corpus == BUCKEYE_KEY:
         start = time.time()
         sizes = {}
-        for split in ["Train", "Dev", "Test"]:
-            input_split = args.input_dir / split
-            sizes[split] = process_buckeye_subfolder(input_split, args.output_dir, split)
+        for original_split, huggingface_split in [("Train", "train"), ("Dev", "validation"), ("Test", "test")]:
+            input_split = args.input_dir / original_split
+            sizes[huggingface_split] = process_buckeye_subfolder(input_split, args.output_dir, huggingface_split)
 
         print("Buckeye num files per split:", sizes)
         end = time.time()
         duration = end - start
         print(f"Elapsed time for Buckeye: {duration}")
         with open(stats_file, "a") as f:
-            f.write("{}\t{}\t{}\t{}\t{}\n".format("buckeye", sizes["Train"], sizes["Dev"], sizes["Test"], duration))
+            f.write("{}\t{}\t{}\t{}\t{}\n".format("buckeye", sizes["train"], sizes["validation"], sizes["test"], duration))
         
         
     elif args.corpus in [COMMONVOICE_KEY, LIBRISPEECH_KEY]:
