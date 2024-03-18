@@ -82,8 +82,8 @@ class DataCollatorCTCWithPadding:
 def extract_all_chars_ipa(batch: dict) -> dict:
     # Change this function later at some point to create vocabulary based on
     # phonemes, not on characters
-    all_text = " ".join(batch["ipa"])
-    return set(all_text)
+    all_text = "".join(batch["ipa"])
+    return {"vocab": list(set(all_text))}
 
 def prepare_dataset_ipa(batch: dict, processor_ipa:Wav2Vec2Processor) -> dict:
     audio = batch["audio"]
@@ -130,7 +130,7 @@ def remove_space(batch: dict) -> dict:
     batch["ipa"] = ipa
     return batch
 
-def create_vocabulary(*datasets):
+def create_vocabulary(*datasets, use_resource_vocab=True):
     """Determines the vocabulary of IPA characters needed for the model.
 
     Returns:
@@ -141,18 +141,18 @@ def create_vocabulary(*datasets):
         d_vocab = d.map(
             extract_all_chars_ipa,
             batched=True,
-            batch_size=-1,
             keep_in_memory=True,
             remove_columns=d.column_names
         )
-        vocab_set = vocab_set | d_vocab
+        vocab_set = vocab_set | set(d_vocab["vocab"])
 
     # Add in data from resources file
-    all_vocab_file = importlib.resources.files("multipa.resources").joinpath("full_vocab_ipa.txt")
-    with all_vocab_file as f:
-        new_vocab = set([l.strip() for l in f.read_text().splitlines()])
-        vocab_set = vocab_set | new_vocab
-    
+    if use_resource_vocab: 
+        all_vocab_file = importlib.resources.files("multipa.resources").joinpath("full_vocab_ipa.txt")
+        with all_vocab_file as f:
+            new_vocab = set([l.strip() for l in f.read_text().splitlines()])
+            vocab_set = vocab_set | new_vocab
+        
     vocab_dict_ipa = {v: k for k, v in enumerate(vocab_set)}
     vocab_dict_ipa[UNKNOWN_TOKEN] = len(vocab_dict_ipa)
     vocab_dict_ipa[PADDING_TOKEN] = len(vocab_dict_ipa)
