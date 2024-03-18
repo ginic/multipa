@@ -20,5 +20,4 @@ pip install --upgrade pip
 
 pip install .
 python -m unidic download
-curl -O https://raw.githubusercontent.com/menelik3/cmudict-ipa/master/cmudict-0.7b-ipa.txt
 

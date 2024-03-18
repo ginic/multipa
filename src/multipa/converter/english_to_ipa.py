@@ -21,7 +21,7 @@ class English2IPA:
 
     # TODO Use cmudict from file resources
     def __init__(self, keep_suprasegmental = False, filename = None):
-        """_summary_
+        """Generate english 
 
         Args:
             keep_suprasegmental (bool, optional): Set to true to keep stress markers. Defaults to False.
@@ -43,7 +43,7 @@ class English2IPA:
             else:
                 addendum = self.prondict[w][0]
             if not self.keep_suprasegmental:
-                addendum.replace("ˈ", "").replace("ˌ", "")
+                addendum = addendum.replace("ˈ", "").replace("ˌ", "")
             transcription.append(addendum)
         output = " ".join(transcription)
         return output
