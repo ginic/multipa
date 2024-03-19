@@ -6,17 +6,14 @@ from pathlib import Path
 from typing import Dict, List, Optional, Union
 
 from dataclasses import dataclass
-from datasets import load_dataset, Audio, concatenate_datasets
+from datasets import Audio, concatenate_datasets
 from transformers import Wav2Vec2CTCTokenizer, Wav2Vec2FeatureExtractor, Wav2Vec2Processor, Wav2Vec2ForCTC, TrainingArguments, Trainer
 import torch
 
-from multipa.data_utils import filter_low_quality, BUCKEYE_KEY, COMMONVOICE_KEY, LIBRISPEECH_KEY, DataLoadError
+from multipa.data_utils import UNKNOWN_TOKEN, PADDING_TOKEN, BUCKEYE_KEY, COMMONVOICE_KEY, LIBRISPEECH_KEY, clean_text, load_buckeye_split, load_common_voice_split, load_librispeech_split
 
-# Extra vocabulary elements for tokenization
-UNKNOWN_TOKEN = "[UNK]"
-PADDING_TOKEN = "[PAD]"
-
-#from multipa.add_forvo import add_language
+# Ignore Forvo for now, I don't have access to the data
+# from multipa.add_forvo import add_language
 
 @dataclass
 class DataCollatorCTCWithPadding:
@@ -78,6 +75,7 @@ class DataCollatorCTCWithPadding:
         batch["labels"] = labels
 
         return batch
+    
 
 def extract_all_chars_ipa(batch: dict) -> dict:
     # Change this function later at some point to create vocabulary based on
@@ -85,15 +83,16 @@ def extract_all_chars_ipa(batch: dict) -> dict:
     all_text = "".join(batch["ipa"])
     return {"vocab": list(set(all_text))}
 
+
 def prepare_dataset_ipa(batch: dict, processor_ipa:Wav2Vec2Processor) -> dict:
     audio = batch["audio"]
-
     # batched output is unbatched
     batch["input_values"] = processor_ipa(audio["array"],
                                           sampling_rate=audio["sampling_rate"]).input_values[0]
     with processor_ipa.as_target_processor():
         batch["labels"] = processor_ipa(batch["ipa"]).input_ids
     return batch
+
 
 def remove_long_data(dataset, max_seconds=12):
     # convert pyarrow table to pandas
@@ -123,12 +122,6 @@ def concatenate_common_voice(datasetlist: list):
     concatenated = concatenate_datasets(datasetlist)
     return concatenated
 
-def remove_space(batch: dict) -> dict:
-    ipa = batch["ipa"]
-    ipa = ipa.split()
-    ipa = "".join(ipa)
-    batch["ipa"] = ipa
-    return batch
 
 def create_vocabulary(*datasets, use_resource_vocab=True):
     """Determines the vocabulary of IPA characters needed for the model.
@@ -159,126 +152,6 @@ def create_vocabulary(*datasets, use_resource_vocab=True):
     return vocab_dict_ipa
 
 
-def validate_dataset_files_match(raw_data, ipa_data, key:str, is_check_basename:bool=False):
-    if len(raw_data) != len(ipa_data):
-        raise DataLoadError("Length of raw data and IPA transcription data doesn't match.")
-
-    for j in range(len(raw_data)):
-        if is_check_basename:
-            filename = raw_data[j][key].split("/")[-1]
-            ipa_filename = ipa_data[j][key].split("/")[-1]
-        else:
-            filename = raw_data[j][key]
-            ipa_filename = ipa_data[j][key]
-        if filename != ipa_filename:
-            raise DataLoadError(f"No match between IPA and raw data on '{key}'. IPA: {ipa_filename}, Raw: {filename}")
-        
-def join_column(left_dataset, right_dataset, on_key:str, right_col:str, is_check_basename:bool=False, 
-                additional_check_col:str|None="sentence"):
-    """Joins a column from the right dataset into the left.
-
-    Args:
-        left_dataset: Huggingface dataset 
-        right_dataset: Huggingface dataset
-        on_key (str): join key, must be present in both datasets
-        right_col (str): column to add from right dataset
-        is_check_basename (bool): If on_key contains full paths, but you only want to validate the basename matches
-        additional_check_col (str|None): If there's an additional column you want to check matches before joining, use this. Check 'sentence' column by default.
-
-    Returns:
-        Huggingface Dataset
-    """
-    # TODO Better to use SQL style join on file column if Huggingface supports this?
-    # Join in IPA data by matching file name
-    right_sorted = right_dataset.sort(on_key)
-    left_sorted = left_dataset.sort(on_key)
-    validate_dataset_files_match(left_sorted, right_sorted, on_key, is_check_basename)
-    if additional_check_col is not None: 
-        validate_dataset_files_match(left_sorted, right_sorted, additional_check_col)
-    new_col = [right_sorted[i][right_col] for i in range(len(right_sorted))]
-    return left_sorted.add_column(right_col, new_col)
-
-
-def load_common_voice_split(language: str, quality_filter: bool, split:str, huggingface_split:str, data_dir:str, json_filename:str, 
-                            cache_dir:str, num_proc:int, dataset_name:str="mozilla-foundation/common_voice_11_0"):
-    """Loads the specified split of Common Voice dataset, reading IPA transcriptions for a local JSON file. 
-    Optionally filter to only include high quality data from Common Voice. 
-    Always does special language specific filtering for Tamil, language="ta"
-
-    Args:
-        language (str): 2-letter language ISO code
-        quality_filter (bool): Set to true to remove low quality transcriptions with at least one downvote
-        split (str): Data split name to read from the JSON file
-        huggingface_split (str): Data split name for loading directly from Huggingface
-        data_dir (str): Path to directory containing the json dataset
-        json_filename (str): Json filename (basename only). Should be in data_dir.
-        cache_dir (str): Cache directory for Huggingface
-        num_proc (int): number of threads when loading dataset from Huggingface
-        dataset_name (str, optional): _description_. Defaults to "mozilla-foundation/common_voice_11_0".
-
-    Returns:
-        Huggingface Dataset
-    """
-    ipa_dataset = load_dataset("json",
-                                data_files=str(Path(data_dir) / json_filename),
-                                split=split)
-    raw_audio = load_dataset(dataset_name,
-                             language,
-                             split=huggingface_split,
-                             num_proc=num_proc, 
-                             cache_dir=cache_dir)
-    
-    full_dataset = join_column(raw_audio, ipa_dataset, "path", "ipa", is_check_basename=True)
-
-    # Remove Tamil sentences containing "ச"
-    if language == "ta":
-        full_dataset = full_dataset.filter(lambda batch: "ச" not in batch["sentence"]) 
-
-    if quality_filter:
-        full_dataset = filter_low_quality(full_dataset)
-    
-    return full_dataset                                
-
-
-def load_librispeech_split(split:str, huggingface_split:str, data_dir:str, json_filename:str, cache_dir:str, 
-                           num_proc:int, dataset_name:str = "librispeech_asr"):
-    """Load a full split of the Librispeech dataset from Huggingface, reading IPA transcriptions from a local JSON file. 
-    Rename columns to match Common Voice format, so training and validation code can be shared.
-
-    Args:
-        split (str): Name fo the data split for reading IPA data from json dataset format - should be either "train" or "valid"
-        huggingface_split (str): Name of the data split to download from Huggingface. 
-        data_dir (str): Path to directory containing the json dataset
-        json_filename (str): Json filename (basename only). Should be in data_dir.
-        cache_dir (str): Cache directory for Huggingface
-        num_proc (int): number of threads when loading dataset from Huggingface
-        dataset_name (str): Name of the dataset to load from Huggingface, defaults to "librispeech_asr"
-    """
-    # Librispeech starts with the audio path in "file" column and transcription in "text" column
-    # You need to finish with audio path in "path" and transcription "sentence"
-    ipa_dataset = load_dataset("json",
-                                data_files=str(Path(data_dir) / json_filename),
-                                split=split)
-    ipa_dataset = ipa_dataset.rename_column("text", "sentence")
-
-    raw_audio = load_dataset(dataset_name,
-                             split=huggingface_split,
-                             num_proc=num_proc, 
-                             cache_dir=cache_dir)
-    raw_audio = raw_audio.rename_column("text", "sentence")
-
-    # Join in IPA data by matching file name
-    full_dataset = join_column(raw_audio, ipa_dataset, "file", "ipa")
-    full_dataset = full_dataset.rename("file", "path")
-    return full_dataset
-
-def load_buckeye(corpus_root_dir: str):
-    train_split = load_dataset("audiofolder", data_dir=corpus_root_dir, split="train")
-    valid_split = load_dataset("audiofolder", data_dir=corpus_root_dir, split="validation")
-
-    return train_split, valid_split
-    
-
 def main_cli():
     # Arguments
     parser = argparse.ArgumentParser(description="Trains the speech recognition model. Specify corpus, "\
@@ -295,6 +168,7 @@ def main_cli():
                         help="Specify the directory to save files for vocab, stats and trained models.")
     parser.add_argument("-s", "--suffix", type=str, default="",
                         help="Optional suffix to use when naming vocab and model folders")
+    parser.add_argument("-g", "--use_gpu", action="store_true", help="Use this flag if a GPU is available for training.")
 
     
     # TODO This is a bit confusing, but it's basically reading the train/test splits from the preprocessing output. Might not be necessary for Buckeye
@@ -370,26 +244,30 @@ def main_cli():
                                             args.cache_dir, args.num_proc, dataset_name)
         valid_data = load_librispeech_split("valid", "validation.clean", args.data_dir, f"en_valid{args.suffix}.json", 
                                             args.cache_dir, args.num_proc, dataset_name)
-        # Clipping to the specified sample size using datasets's Dataset.select()
+        # Shuffle and clip to the specified sample size using datasets's Dataset.select(). 
+        # Shuffle because datasets are often ordered by speaker and you want a variety of speakers.
         train_limit = min(args.train_samples, len(train_data))
         valid_limit = min(args.val_samples, len(valid_data))
-        full_train_data = train_data.select(range(train_limit))
-        full_valid_data = valid_data.select(range(valid_limit))
+       
+        full_train_data = train_data.shuffle(seed=7).select(range(train_limit))
+        full_valid_data = valid_data.shuffle(seed=99).select(range(valid_limit))
 
         with open(stats_file, "a") as f:
-            f.write(f"{dataset_name} en {len(train_data)} {len(valid_data)}\n")
+            f.write(f"{dataset_name} en {len(full_train_data)} {len(full_valid_data)}\n")
 
     elif args.corpus == BUCKEYE_KEY: 
         dataset_name = "buckeye"
-        train_data, valid_data = load_buckeye(args.data_dir)
-        # Clipping to the specified sample size using datasets's Dataset.select()
+        train_data = load_buckeye_split(args.data_dir, "test")
+        valid_data = load_buckeye_split(args.data_dir, "validation")
+        # Shuffle and clip to the specified sample size using datasets's Dataset.select(). 
+        # Shuffle because datasets are often ordered by speaker and you want a variety of speakers.
         train_limit = min(args.train_samples, len(train_data))
         valid_limit = min(args.val_samples, len(valid_data))
-        full_train_data = train_data.select(range(train_limit))
-        full_valid_data = valid_data.select(range(valid_limit))
+        full_train_data = train_data.shuffle(seed=7).select(range(train_limit))
+        full_valid_data = valid_data.shuffle(seed=99).select(range(valid_limit))
 
         with open(stats_file, "a") as f:
-            f.write(f"{dataset_name} en {len(train_data)} {len(valid_data)}\n")
+            f.write(f"{dataset_name} en {len(full_train_data)} {len(full_valid_data)}\n")
     
     elif args.corpus == COMMONVOICE_KEY:
         lgx = args.languages   
@@ -407,12 +285,12 @@ def main_cli():
             valid_data = load_common_voice_split(lang, args.quality_filter, "valid", "validation", 
                                                  args.data_dir, f"{lang}_valid{args.suffix}.json", args.cache_dir, args.num_proc, dataset_name)
 
-
-            # Clipping to the specified sample size using datasets's Dataset.select()
+            # Shuffle and clip to the specified sample size using datasets's Dataset.select(). 
+            # Shuffle because datasets are often ordered by speaker and you want a variety of speakers.
             train_limit = min(train_sample, len(train_data))
             valid_limit = min(valid_sample, len(valid_data))
-            train_data = train_data.select(range(train_limit))
-            valid_data = valid_data.select(range(valid_limit))
+            train_data = train_data.shuffle(seed=7).select(range(train_limit))
+            valid_data = valid_data.shuffle(seed=99).select(range(valid_limit))
             
             train_list.append(train_data)
             valid_list.append(valid_data)
@@ -438,7 +316,8 @@ def main_cli():
     # Remove unnecessary columns
     unnecessary_columns = [
         "accent", "age", "client_id", "down_votes", "gender", "locale", "segment", "up_votes", # for Common Voice
-        "speaker_id", "chapter_id", "id" #for librispeech
+        "speaker_id", "chapter_id", "id", #for librispeech
+        ""
         ]
     columns_to_remove = set(unnecessary_columns).intersection(full_train_data.column_names)
     print("Removing unnecessary columns:", columns_to_remove)
@@ -447,13 +326,10 @@ def main_cli():
     print("Unnecessary columns removed. Data preview:")
     print(full_train_data[0])
     assert full_train_data.features.type == full_valid_data.features.type
+    
+    full_train_data = full_train_data.map(lambda x: clean_text(x, is_remove_space = args.no_space))
+    full_valid_data = full_valid_data.map(lambda x: clean_text(x, is_remove_space = args.no_space))
 
-    # Remove spaces if specified
-    if args.no_space:
-        full_train_data = full_train_data.map(remove_space)
-        full_valid_data = full_valid_data.map(remove_space)
-        assert " " not in full_train_data[0]["ipa"], print("Apparently space removal did not work correctly")
-        
     # Shuffle the dataset
     print("Shuffling the dataset...")
     full_train_data = full_train_data.shuffle(seed=42)
@@ -503,6 +379,7 @@ def main_cli():
     print("Sampling rate adjustment done")
 
     print("Preprocessing the dataset...")
+    # Critically, this assigns the "labels" values 
     # Try removing `num_proc=` if you encounter any errors while running this part
     processor_func = lambda x: prepare_dataset_ipa(x, processor_ipa)
     full_train_data = full_train_data.map(
@@ -564,7 +441,7 @@ def main_cli():
         gradient_accumulation_steps=4,
         evaluation_strategy="steps",
         num_train_epochs=args.num_train_epochs,
-        #fp16=True, # Can uncomment on CUDA GPU, only needed when training on CPU
+        fp16= args.use_gpu,
         save_steps=100,
         eval_steps=100,
         logging_steps=10,

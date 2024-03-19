@@ -18,6 +18,8 @@ def test_english_generate_ipa():
     ("dh ih s ih z U ah t eh s t", "ð ɪ s ɪ z ʌ t ɛ s t", False),
     ("dh ih s ih z U ah t eh s t", "ð ɪ s ɪ z U ʌ t ɛ s t", True),
     ("dh ih s ih z ah t eh s t", "ð ɪ s ɪ z ʌ t ɛ s t", False),
+    ("U U", "", False),
+    ("U", "", False)
 ])
 def test_buckeye_to_ipa(buckeye_input, expected_ipa, keep_interrupts):
     actual = buckeye_to_ipa(buckeye_input, keep_interrupts)

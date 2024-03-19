@@ -34,6 +34,9 @@ def buckeye_to_ipa(buckeye_transcription:str, is_keep_interrupts:bool=False):
             ipa_seg = phonecodes.buckeye2ipa(" ".join(buckeye_sym_list[start_index:]))
             final_segments.append(ipa_seg)
 
-    return " ".join(final_segments)
+    if len(final_segments) > 0:
+        return " ".join(final_segments)
+    else: 
+        return " "
 
     

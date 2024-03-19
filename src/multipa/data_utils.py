@@ -1,388 +1,177 @@
-from datasets import load_dataset, Dataset
-from multipa.converter.japanese_to_ipa import Japanese2IPA
-from multipa.converter.maltese_to_ipa import Maltese2IPA
-from multipa.converter.finnish_to_ipa import Finnish2IPA
-from multipa.converter.greek_to_ipa import Greek2IPA
-import random
-import epitran
-import re
+from pathlib import Path
+from datasets import load_dataset
 
 # Constant corpus identifier options
 LIBRISPEECH_KEY = "librispeech"
 COMMONVOICE_KEY = "commonvoice"
 BUCKEYE_KEY = "buckeye"
 
+# Extra vocabulary elements for tokenization
+UNKNOWN_TOKEN = "[UNK]"
+PADDING_TOKEN = "[PAD]"
 
 class DataLoadError(Exception):
     pass
 
 
-def selection(dataset, selectsize: int):
-    trainsize = len(dataset)
-    samples = sampling(trainsize, selectsize)
-    selected = dataset.select(samples)
-    return selected
-
 def filter_low_quality(dataset):
     dataset = dataset.filter(lambda batch: batch["down_votes"] == 0)
     return dataset
 
-def remove_alpha_punct(batch: dict) -> dict:
-    """
-    Remove punctuation symbols from batch["sentence"],
-    which contains the sentence (transcription) of the
-    speech data.
-    This function can only be used for alphabetical orthographies.
-    """
-    non_punct = "[\s\w]"
-    sent = re.findall(non_punct, batch["sentence"].lower(), re.MULTILINE)
-    batch["sentence"] = "".join(sent)
+
+def remove_space(batch: dict, col_key) -> dict:
+    ipa = batch[col_key]
+    ipa = ipa.split()
+    ipa = "".join(ipa)
+    batch[col_key] = ipa
     return batch
 
-def convert_maltese_to_ipa(batch: dict) -> dict:
-    """
-    Convert Maltese sentences to IPA.
-    Note that `maltese_generate_ipa` also handles punctuation removal.
-    """
-    sent = batch["sentence"]
-    batch["ipa"] = Maltese2IPA.maltese_generate_ipa(sent)
-    return batch
 
-def convert_polish_to_ipa(batch: dict) -> dict:
-    """                                                                                                                                                                                                        Convert Polish sentences to IPA.                                                                                                                                                                           """
-    epi = epitran.Epitran('pol-Latn')
-    batch["ipa"] = epi.transliterate(batch["sentence"])
-    return batch
+def replace_none(batch: dict, col_key) -> dict:
+    """Replaces any None value for the given col_key with the empty string '' instead. 
 
-def convert_hungarian_to_ipa(batch: dict) -> dict:
-    """
-    Convert Hungarian sentences to IPA.
-    """
-    epi = epitran.Epitran("hun-Latn")
-    batch["ipa"] = epi.transliterate(batch["sentence"])
-    return batch
+    Args:
+        batch (dict): Dictionary containing specified col)key
 
-def convert_finnish_to_ipa(batch: dict) -> dict:
+    Returns:
+        dict: 
     """
-    Convert Finnish sentences to IPA.
-    Note that `finnish_generate_ipa` also handles punctuation removal.
-    """
-    sent = batch["sentence"]
-    batch["ipa"] = Finnish2IPA.finnish_generate_ipa(sent)
-    return batch
-
-def convert_greek_to_ipa(batch: dict) -> dict:
-    """
-    Convert Greek sentences to IPA.
-    Note that `greek_generate_ipa` also ahndles punctualtion removal.
-    """
-    sent = batch["sentence"]
-    batch["ipa"] = Greek2IPA.greek_generate_ipa(sent)
-    return batch
-
-def convert_tamil_to_ipa(batch: dict) -> dict:
-    """
-    Convert Tamil sentences to IPA.
-    """
-    epi = epitran.Epitran("tam-Taml")
-    sent = epi.transliterate(batch["sentence"])
-    voiceable = {"k": "g",
-                 "q": "d͡ʑ",
-                 "x": "d̪",
-                 "p": "b",
-                 "ʈ": "ɖ", 
-                 "t": "d"}
-
-    convertable = {"ŋk": "ŋg",
-                   "n̪x": "n̪d̪",
-                   "ɲq": "ɲd͡ʑ",
-                   "ɳʈ": "ɳɖ",
-                   "rr": "tːr",
-                   "pp": "pː",
-                   "kk": "kː",
-                   "xx": "t̪ː",
-                   "ʈʈ": "ʈː",
-                   "qq": "t͡ɕː",
-                   "nr": "ndr",
-                   "ɯː": "uː",}
+    ipa = batch[col_key]
+    if ipa is None:
+        batch[col_key] = ""
     
-    sent = sent.replace("t͡ʃ", "q")
-    sent = sent.replace("t̪", "x")
-    
-    for k, v in convertable.items():
-        sent = sent.replace(k, v)
+    return batch 
 
-    sonorants = ["a", "ɯ", "i", "e", "o", "j", "ɾ" "ː"]
-    newsent = list(sent)
-    for i, c in enumerate(sent):
-        if i >= 1 and i < len(sent) - 1:
-            if sent[i-1] in sonorants and sent[i+1] in sonorants and sent[i] in voiceable.keys():
-                newsent[i] = voiceable[c]
-    sent = "".join(newsent)
-    sent = sent.replace("q", "t͡ɕ")
-    sent = sent.replace("x", "t̪")
+def clean_text(batch:dict, text_key="ipa", is_remove_space=True):
+    """Basic text pre-processing steps. Replace any None values with the empty string and optionally remove whitespace.
 
-    tokens = sent.split()
-    for i, t in enumerate(tokens):
-        if t.startswith("e"):
-            tokens[i] = "j" + t
-    sent = " ".join(tokens)
+    Args:
+        batch (dict): _description_
+        text_key (str, optional): Column/dict key where the desired text is stored. Defaults to "ipa".
+        is_remove_space (bool, optional): Set to true to remove whitespace from text. Defaults to True.
 
-    # remove punctuation for IPA 
-    non_punct = r"[\s\w\u0250-\u02AF\u02B0-\u02FF\u1D00-\u1D7F\u1D80–\u1DBF\u0300-\u036F]"
-    sent = re.findall(non_punct, sent, re.MULTILINE)
-    sent = "".join(sent)
-
-    batch["ipa"] = sent
+    Returns:
+        _type_: _description_
+    """
+    batch = replace_none(batch, text_key)
+    if is_remove_space:
+        batch = remove_space(batch, text_key)
     return batch
 
-def sampling(size: int, n: int) -> list:
+def validate_dataset_files_match(raw_data, ipa_data, key:str, is_check_basename:bool=False):
+    if len(raw_data) != len(ipa_data):
+        raise DataLoadError("Length of raw data and IPA transcription data doesn't match.")
+
+    for j in range(len(raw_data)):
+        if is_check_basename:
+            filename = raw_data[j][key].split("/")[-1]
+            ipa_filename = ipa_data[j][key].split("/")[-1]
+        else:
+            filename = raw_data[j][key]
+            ipa_filename = ipa_data[j][key]
+        if filename != ipa_filename:
+            raise DataLoadError(f"No match between IPA and raw data on '{key}'. IPA: {ipa_filename}, Raw: {filename}")
+        
+def join_column(left_dataset, right_dataset, on_key:str, right_col:str, is_check_basename:bool=False, 
+                additional_check_col:str|None="sentence"):
+    """Joins a column from the right dataset into the left.
+
+    Args:
+        left_dataset: Huggingface dataset 
+        right_dataset: Huggingface dataset
+        on_key (str): join key, must be present in both datasets
+        right_col (str): column to add from right dataset
+        is_check_basename (bool): If on_key contains full paths, but you only want to validate the basename matches
+        additional_check_col (str|None): If there's an additional column you want to check matches before joining, use this. Check 'sentence' column by default.
+
+    Returns:
+        Huggingface Dataset
     """
-    size: The length (number of samples) in the original dataset
-    n: The length of the samples you want to get
-    The output is a list of integers (indices of the dataset) without duplication.
-    Use this function to reduce the sample size of the dataset when training with
-    multiple languages and expected to be time-consuming.
+    # TODO Better to use SQL style join on file column if Huggingface supports this?
+    # Join in IPA data by matching file name
+    right_sorted = right_dataset.sort(on_key)
+    left_sorted = left_dataset.sort(on_key)
+    validate_dataset_files_match(left_sorted, right_sorted, on_key, is_check_basename)
+    if additional_check_col is not None: 
+        validate_dataset_files_match(left_sorted, right_sorted, additional_check_col)
+    new_col = [right_sorted[i][right_col] for i in range(len(right_sorted))]
+    return left_sorted.add_column(right_col, new_col)
+
+
+def load_common_voice_split(language: str, quality_filter: bool, split:str, huggingface_split:str, data_dir:str, json_filename:str, 
+                            cache_dir:str, num_proc:int, dataset_name:str="mozilla-foundation/common_voice_11_0"):
+    """Loads the specified split of Common Voice dataset, reading IPA transcriptions for a local JSON file. 
+    Optionally filter to only include high quality data from Common Voice. 
+    Always does special language specific filtering for Tamil, language="ta"
+
+    Args:
+        language (str): 2-letter language ISO code
+        quality_filter (bool): Set to true to remove low quality transcriptions with at least one downvote
+        split (str): Data split name to read from the JSON file
+        huggingface_split (str): Data split name for loading directly from Huggingface
+        data_dir (str): Path to directory containing the json dataset
+        json_filename (str): Json filename (basename only). Should be in data_dir.
+        cache_dir (str): Cache directory for Huggingface
+        num_proc (int): number of threads when loading dataset from Huggingface
+        dataset_name (str, optional): _description_. Defaults to "mozilla-foundation/common_voice_11_0".
+
+    Returns:
+        Huggingface Dataset
     """
-    numlist = [i for i in range(size)]
-    random_samples = random.sample(numlist, n)
-    return random_samples
+    ipa_dataset = load_dataset("json",
+                                data_files=str(Path(data_dir) / json_filename),
+                                split=split)
+    raw_audio = load_dataset(dataset_name,
+                             language,
+                             split=huggingface_split,
+                             num_proc=num_proc, 
+                             cache_dir=cache_dir)
+    
+    full_dataset = join_column(raw_audio, ipa_dataset, "path", "ipa", is_check_basename=True)
 
-def selection(dataset, selectsize: int):
-    trainsize = len(dataset)
-    samples = sampling(trainsize, selectsize)
-    selected = dataset.select(samples)
-    return selected
+    # Remove Tamil sentences containing "ச"
+    if language == "ta":
+        full_dataset = full_dataset.filter(lambda batch: "ச" not in batch["sentence"]) 
 
-def downsampling(dataset: Dataset, samples: int):
-    size = len(dataset)
-    if size == None or size < samples:
-        samples = size
-    dataset = selection(dataset, samples)
-    return dataset
+    if quality_filter:
+        full_dataset = filter_low_quality(full_dataset)
+    
+    return full_dataset                                
 
-class Preprocessors:
-    @classmethod
-    def japanese(cls, train_samples, test_samples, quality_filter=False):
-        # should the first variable be `cls`?
-        # load dataset
-        ja_train = load_dataset("common_voice", "ja", split="train")
-        ja_test = load_dataset("common_voice", "ja", split="validation")
 
-        # Filter low quality samples
-        if quality_filter:
-            ja_train = filter_low_quality(ja_train)
-            ja_test = filter_low_quality(ja_test)
+def load_librispeech_split(split:str, huggingface_split:str, data_dir:str, json_filename:str, cache_dir:str, 
+                           num_proc:int, dataset_name:str = "librispeech_asr"):
+    """Load a full split of the Librispeech dataset from Huggingface, reading IPA transcriptions from a local JSON file. 
+    Rename columns to match Common Voice format, so training and validation code can be shared.
 
-        # downsampling if necessary
-        # train_size = len(ja_train)
-        # test_size = len(ja_test)
-        # if train_size == None or train_size < train_samples:
-        #     # not specified on the command line or too big value
-        #     train_samples = train_size
-        # if test_size == None or test_size < test_samples:
-        #     # not specified on the command line or too big value
-        #     test_samples = test_size # maximum
-        # ja_train = selection(ja_train, train_samples)
-        # ja_test = selection(ja_test, test_samples)
+    Args:
+        split (str): Name fo the data split for reading IPA data from json dataset format - should be either "train" or "valid"
+        huggingface_split (str): Name of the data split to download from Huggingface. 
+        data_dir (str): Path to directory containing the json dataset
+        json_filename (str): Json filename (basename only). Should be in data_dir.
+        cache_dir (str): Cache directory for Huggingface
+        num_proc (int): number of threads when loading dataset from Huggingface
+        dataset_name (str): Name of the dataset to load from Huggingface, defaults to "librispeech_asr"
+    """
+    # Librispeech starts with the audio path in "file" column and transcription in "text" column
+    # You need to finish with audio path in "path" and transcription "sentence"
+    ipa_dataset = load_dataset("json",
+                                data_files=str(Path(data_dir) / json_filename),
+                                split=split)
+    ipa_dataset = ipa_dataset.rename_column("text", "sentence")
 
-        # to IPA
-        ja_train = ja_train.map(Japanese2IPA.convert)
-        ja_test = ja_test.map(Japanese2IPA.convert)
+    raw_audio = load_dataset(dataset_name,
+                             split=huggingface_split,
+                             num_proc=num_proc, 
+                             cache_dir=cache_dir)
+    raw_audio = raw_audio.rename_column("text", "sentence")
 
-        return ja_train, ja_test
+    # Join in IPA data by matching file name
+    full_dataset = join_column(raw_audio, ipa_dataset, "file", "ipa")
+    full_dataset = full_dataset.rename("file", "path")
+    return full_dataset
 
-    @classmethod
-    def polish(cls, train_samples, test_samples, quality_filter=False):
-        # load dataset
-        pl_train = load_dataset("common_voice", "pl", split="train")
-        pl_test = load_dataset("common_voice", "pl", split="validation")
-
-        # Filter low-quality samples
-        if quality_filter:
-            pl_train = filter_low_quality(pl_train)
-            pl_test = filter_low_quality(pl_test)
-
-        # Downsampling if necessary
-        # train_size = len(pl_train)
-        # test_size = len(pl_test)
-        # if train_size < train_samples:
-        #     train_samples = train_size # maximu
-        #     print("Train samples are larger than the available data samples.\nWe use the maximum size instead.")
-        # if test_size < test_samples:
-        #     test_samples = test_size # maximum  
-        #     print("Test samples are larger than the available data samples.\nWe use the maximum size instead.")
-        # pl_train = selection(pl_train, train_samples)
-        # pl_test = selection(pl_test, test_samples)
-
-        # Remove punctuation
-        pl_train = pl_train.map(remove_alpha_punct)
-        pl_test = pl_test.map(remove_alpha_punct)
-
-        # to IPA
-        pl_train = pl_train.map(convert_polish_to_ipa)
-        pl_test = pl_test.map(convert_polish_to_ipa)
-
-        return pl_train, pl_test
-
-    @classmethod
-    def maltese(cls, train_samples, test_samples, quality_filter=False):
-        # Load dataset
-        mt_train = load_dataset("common_voice", "mt", split="train")
-        mt_test = load_dataset("common_voice", "mt", split="validation")
-
-        # Filter low-quality audio                                                                                                                                                                         
-        if quality_filter:
-            mt_train = filter_low_quality(mt_train)
-            mt_test = filter_low_quality(mt_test)
-
-        # Downsampling if necessary
-        # train_size = len(mt_train)
-        # test_size = len(mt_test)
-        # if train_size < train_samples:
-        #     train_samples = train_size # maximum
-        #     print("Train samples are larger than the available data samples.\nWe use the maximum size instead.")
-        # if test_size < test_samples:
-        #     test_samples = test_size # maximum
-        #     print("Test samples are larger than the available data samples.\nWe use the maximum size instead.")
-        # mt_train = selection(mt_train, train_samples)
-        # mt_test = selection(mt_test, test_samples)
-
-        # Remove punctuation and convert to IPA
-        mt_train = mt_train.map(convert_maltese_to_ipa)
-        mt_test = mt_test.map(convert_maltese_to_ipa)
-
-        return mt_train, mt_test
-
-    @classmethod
-    def hungarian(cls, train_samples, test_samples, quality_filter=False):
-        # Load dataset
-        hu_train = load_dataset("common_voice", "hu", split="train")
-        hu_test = load_dataset("common_voice", "hu", split="validation")
-
-        # Filter low-quality audio
-        if quality_filter:
-            hu_train = filter_low_quality(hu_train)
-            hu_test = filter_low_quality(hu_test)
-
-        # Downsampling if necessary
-        # train_size = len(hu_train)
-        # test_size = len(hu_test)
-        # if train_size < train_samples:
-        #     train_samples = train_size # maximum
-        #     print("Train samples are larger than the available data samples.\nWe use the maximum size instead.")
-        # if test_size < test_samples:
-        #     test_samples = test_size # maximum
-        #     print("Test samples are larger than the available data samples.\nWe use the maximum size instead.")
-        # hu_train = selection(hu_train, train_samples)
-        # hu_test = selection(hu_test, test_samples)
-
-        # Remove punctuation
-        hu_train = hu_train.map(remove_alpha_punct)
-        hu_test = hu_test.map(remove_alpha_punct)
-
-        # to IPA
-        hu_train = hu_train.map(convert_hungarian_to_ipa)
-        hu_test = hu_test.map(convert_hungarian_to_ipa)
-
-        return hu_train, hu_test
-
-    @classmethod
-    def finnish(cls, train_samples, test_samples, quality_filter=False):
-        # Load dataset
-        train = load_dataset("common_voice", "fi", split="train")
-        test = load_dataset("common_voice", "fi", split="validation")
-
-        # Filter low-quality audio
-        if quality_filter:
-            train = filter_low_quality(train)
-            test = filter_low_quality(test)
-
-        # Downsampling if necessary
-        # train_size = len(train)
-        # test_size = len(test)
-        # if train_size < train_samples:
-        #     train_samples = train_size
-        #     print("Train samples are larger than the available data samples.\nWe use the maximum size instead.")
-        # if test_size < test_samples:
-        #     test_samples = test_size
-        #     print("Test samples are larger than the available data samples.\nWe use the maximum size instead.")
-        # train = selection(train, train_samples)
-        # test = selection(test, test_samples)
-
-        # punctuation removal and conversion to IPA 
-        train = train.map(convert_finnish_to_ipa)
-        test = test.map(convert_finnish_to_ipa)
-
-        return train, test
-
-    @classmethod
-    def greek(cls, train_samples, test_samples, quality_filter=False):
-        # Load dataset
-        train = load_dataset("common_voice", "el", split="train")
-        test = load_dataset("common_voice", "el", split="validation")
-
-        # Filter low-quality audio
-        if quality_filter:
-            train = filter_low_quality(train)
-            test = filter_low_quality(test)
-
-        # Downsampling if necessary
-        # train_size = len(train)
-        # test_size = len(test)
-        # if train_size < train_samples:
-        #     train_samples = train_size
-        #     print("Train samples are larger than the available data samples.\nWe use the maximum size instead.")
-        # if test_size < test_samples:
-        #     test_samples = test_size
-        #     print("Test samples are larger than the available data samples.\nWe use the maximum size instead.")
-        # train = selection(train, train_samples)
-        # test = selection(test, test_samples)
-
-        # punctuation removal and conversion to IPA                                                                                                                                                        
-        train = train.map(convert_greek_to_ipa)
-        test = test.map(convert_greek_to_ipa)
-
-        return train, test
-
-    @classmethod
-    def tamil(cls, train_samples, test_samples, quality_filter=False):
-        # Load dataset
-        train = load_dataset("common_voice", "ta", split="train")
-        test = load_dataset("common_voice", "ta", split="validation")
-
-        # Filter low-quality audio
-        if quality_filter:
-            train = filter_low_quality(train)
-            test = filter_low_quality(test)
-
-        # # Downsampling if necessary
-        # train_size = len(train)
-        # test_size = len(test)
-        # if train_size < train_samples:
-        #     train_samples = train_size # maximum
-        #     print("Train samples are larger than the available data samples.\nWe use the maximum size instead.")
-        # if test_size < test_samples:
-        #     test_samples = test_size # maximum
-        #     print("Test samples are larger than the available data samples.\nWe use the maximum size instead.")
-        # train = selection(train, train_samples)
-        # test = selection(test, test_samples)
-
-        # to IPA
-        print("Converting to IPA...")
-        train = train.map(convert_tamil_to_ipa)
-        test = test.map(convert_tamil_to_ipa)
-        print("IPA conversion done")
-
-        print(type(train["ipa"]))
-
-        # Remove punctuation
-        # train = train.map(remove_tamil_punct)
-        # test = test.map(remove_tamil_punct)
-
-        # Filter IPA (don't include samples containing "t͡ɕ" and "d͡ʑ";
-        # they are subject to allophonic variations)
-        train = train.filter(lambda batch: "t͡ɕ" not in batch["ipa"] and "d͡ʑ" not in batch["ipa"])
-        test = test.filter(lambda batch: "t͡ɕ" not in batch["ipa"] and "d͡ʑ" not in batch["ipa"])
-
-        return train, test
+def load_buckeye_split(corpus_root_dir: str, split:str):
+    dataset_split = load_dataset("audiofolder", data_dir=corpus_root_dir, split=split)
+    return dataset_split
+    
