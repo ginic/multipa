@@ -14,7 +14,7 @@ from multipa.converter.finnish_to_ipa import Finnish2IPA
 from multipa.converter.greek_to_ipa import Greek2IPA
 from multipa.converter.tamil_to_ipa import Tamil2IPA
 from multipa.converter.english_to_ipa import English2IPA
-from multipa.converter.buckeye_to_ipa import buckeye_to_ipa
+from multipa.converter.buckeye_to_ipa import buckeye_to_ipa, BUCKEYE_INTERRUPT_SYMBOL
 
 from multipa.data_utils import BUCKEYE_KEY, COMMONVOICE_KEY, LIBRISPEECH_KEY
 
@@ -140,7 +140,7 @@ def resolve_filepath(basename:str, suffix:str, path_prefix:str):
     return str(full_path.with_suffix(suffix))
 
 
-def process_buckeye_subfolder(input_directory:Path, output_dir:Path, hugging_face_split:str):
+def process_buckeye_subfolder(input_directory:Path, output_dir:Path, hugging_face_split:str, is_keep_interrupts:bool=False):
     """Get IPA transcriptions for Buckeye, then write output in the appropriate HuggingFace audiofolder format in output_dir
     Return the number of utterances processed. 
     Note that Hugging Face is fussy about split names, they have to be one of specific keywords and are case sensitive, 
@@ -150,6 +150,8 @@ def process_buckeye_subfolder(input_directory:Path, output_dir:Path, hugging_fac
         input_directory (Path): A pre-defined split of the Buckeye corpus containing audio files, transcription_data.txt and orthographic_data.txt
         output_dir (Path): Desired output directory
         hugging_face_split (str): identifies the name of the split for HuggingFace
+        is_keep_interrupts (bool): Set to True to keep the interrupt symbol in IPA output. Defaults to False
+
 
     Returns:
         int: Number of files processed
@@ -160,7 +162,7 @@ def process_buckeye_subfolder(input_directory:Path, output_dir:Path, hugging_fac
     orthography_file = input_directory / "orthographic_data.txt"
     orthography_df = pd.read_csv(orthography_file, sep="\t", header=None, names=["utterance_id", "duration", "text"]).drop(columns="duration")
     transcriptions_df = transcriptions_df.join(orthography_df.set_index("utterance_id"), on="utterance_id")
-    transcriptions_df["ipa"] = transcriptions_df["buckeye_transcript"].apply(buckeye_to_ipa)
+    transcriptions_df["ipa"] = transcriptions_df["buckeye_transcript"].apply(lambda x: buckeye_to_ipa(x, is_keep_interrupts))
 
     # The file paths need to be relative to the parent folder for Hugging face    
     output_split_dir = output_dir / hugging_face_split
@@ -205,6 +207,8 @@ def main_cli():
 
     buckeye_subparser = subparsers.add_parser(BUCKEYE_KEY, help="Use the Buckeye corpus with pre-defined train/test splits in local files. This just turns it into the HuggingFace 'audiofolder' format with IPA transcriptions.")
     buckeye_subparser.add_argument("input_dir", type=Path, help="Input directory containing Buckeye corpus divided in 'Train', 'Test', 'Dev' subfolders")
+    buckeye_subparser.add_argument("--keep_interrupts", action='store_true', 
+                                   help=f"Use this flag if you want to keep the interrupt symbol '{BUCKEYE_INTERRUPT_SYMBOL}' in transcripts when converting to IPA")
 
 
     args = parser.parse_args()
@@ -219,7 +223,7 @@ def main_cli():
         sizes = {}
         for original_split, huggingface_split in [("Train", "train"), ("Dev", "validation"), ("Test", "test")]:
             input_split = args.input_dir / original_split
-            sizes[huggingface_split] = process_buckeye_subfolder(input_split, args.output_dir, huggingface_split)
+            sizes[huggingface_split] = process_buckeye_subfolder(input_split, args.output_dir, huggingface_split, args.keep_interrupts)
 
         print("Buckeye num files per split:", sizes)
         end = time.time()
