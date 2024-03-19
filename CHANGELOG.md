@@ -17,6 +17,8 @@ You should also add project tags for each release in Github, see [Managing relea
 - All build and packaging switched to use only pyproject.toml
 - Scripts read in files from user-specified paths rather than hard coded paths
 - Separated Librispeech (English) data processing and model training from Common Voice (other languages)
+- Fixed bug in building vocabulary
+- Fixed bug in English to IPA conversion where keep_suprasegmental flag was ignored
 
 ### Removed
  
