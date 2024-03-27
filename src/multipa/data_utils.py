@@ -46,12 +46,12 @@ def clean_text(batch:dict, text_key="ipa", is_remove_space=True):
     """Basic text pre-processing steps. Replace any None values with the empty string and optionally remove whitespace.
 
     Args:
-        batch (dict): _description_
+        batch (dict): attributes for a dataset sample
         text_key (str, optional): Column/dict key where the desired text is stored. Defaults to "ipa".
         is_remove_space (bool, optional): Set to true to remove whitespace from text. Defaults to True.
 
     Returns:
-        _type_: _description_
+        dict: batch with clean text replacing original text_key value
     """
     batch = replace_none(batch, text_key)
     if is_remove_space:

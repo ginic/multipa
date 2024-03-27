@@ -163,7 +163,7 @@ def main_cli():
 
     parser.add_argument("-ml", "--max-length", type=int, default=12, help="Maximum audio length of training & validation samples in seconds")
     parser.add_argument("-ns", "--no_space", action='store_true',
-                        help="Use flags remove spaces in IPA transcription.") 
+                        help="Use this flag remove spaces in IPA transcription.") 
     parser.add_argument("-o", "--output_dir", type=str, 
                         help="Specify the directory to save files for vocab, stats and trained models.")
     parser.add_argument("-s", "--suffix", type=str, default="",
@@ -174,7 +174,7 @@ def main_cli():
     # TODO This is a bit confusing, but it's basically reading the train/test splits from the preprocessing output. Might not be necessary for Buckeye
     parser.add_argument("-dd", "--data_dir", type=Path, default="data_new",
                         help="Specify the directory path for the training/validation data files." \
-                        "Default is set to `data_new/`, which stores the data from the as-of-now newest" \
+                        "Default is set to `data_new`, which stores the data from the as-of-now newest" \
                         "`mozilla-foundation/common_voice_11_0`.")
     
     # TODO Can become subparser
