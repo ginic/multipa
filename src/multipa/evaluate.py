@@ -1,40 +1,75 @@
 import argparse
 from pathlib import Path
 
+
 import datasets
 import evaluate
+import numpy as np
 import pandas as pd
-
 import transformers
+import panphon.distance
 
 from multipa.data_utils import load_buckeye_split, clean_text
-
-
-
+ 
 
 def main(input_data:datasets.Dataset, eval_csv, local_models:list[Path]|None=None, hf_models:list[str]|None=None, 
          verbose_results_dir:Path|None=None, is_remove_space:bool=False):
     # Set sampling rate to 16K
-
     test_dataset = input_data.cast_column("audio", datasets.Audio(sampling_rate=16_000)).\
         map(lambda x: clean_text(x, is_remove_space=is_remove_space))
     
-    #empty_reference_test_data = test_data.filter
-    #non_empty_reference_test_data
-    phone_errors = evaluate.load("ginic/phone_errors")
-    results = {}
+    empty_test_data = test_dataset.filter(lambda x: x["ipa"] == "")
+    non_empty_test_data = test_dataset.filter(lambda x: x["ipa"] != "")
+    phone_errors = evaluate.load("ginic/phone_errors") 
+
+    # Final results will have these keys
+    model_key = "model"
+    per_key = "mean_phone_error_rate"
+    pfer_key = "mean_phone_feature_error_rate"
+    fer_key = "mean_feature_error_rate"
+    phone_hallucinations_key = "total_phone_hallucinations"
+    results = {model_key:[], per_key:[], pfer_key:[], fer_key:[], phone_hallucinations_key:[]}
+    
     for model in local_models + hf_models: 
-        processor = transformers.AutoProcessor.from_pretrained(model)
+        print("Evaluating model:", model)
         pipe = transformers.pipeline("automatic-speech-recognition", model=model)
-        predictions = processor(test_dataset["audio"])
+        predictions = pipe(non_empty_test_data["audio"])
+        metrics = phone_errors.compute(predictions=predictions, references=non_empty_test_data)
+        
+        empty_test_data_predictions = pipe(empty_test_data["audio"])
+        distance_computer = panphon.distance.Distance()
+        phone_lengths = empty_test_data_predictions.map(lambda p: len(distance_computer.fm.ipa_segs(p)))
+        total_phone_hallucinations = sum(phone_lengths)
 
+        # Collect results for this model
+        results[model_key].append(model)
+        results[phone_hallucinations_key].append(total_phone_hallucinations)
+        for k in [per_key, pfer_key, fer_key]:
+            results[k].append(metrics[k])
+        
+        # Write detailed by example evaluation if desired
+        if verbose_results_dir:
+            verbose_results_dir.mkdir(parents=True, exist_ok=True)
+            # Take file separators out of model name
+            clean_model_name = str(model).replace("/", "_").replace("\\", "_")
+            hallucinations_csv =  verbose_results_dir / (clean_model_name + "_hallucinations.csv")
+            detailed_results_csv = verbose_results_dir / (clean_model_name + "_detailed_predictions.csv")
 
+            empty_test_to_write = empty_test_data.add_column("prediction", empty_test_data_predictions).\
+                add_column("num_hallucinated_phones", phone_lengths).\
+                remove_columns(["audio"])
+            empty_test_to_write.to_csv(hallucinations_csv)
 
-        phone_errors.compute()
+            detailed_results = non_empty_test_data.add_column("prediction", predictions).\
+                remove_columns(["audio"])
+            for k in ["phone_error_rates", "phone_feature_error_rates", "feature_error_rates"]:
+                detailed_results = detailed_results.add_column(k, results[k])
+            detailed_results.to_csv(detailed_results_csv)            
+        
 
-
-
-
+    # Write final metrics results
+    pd.DataFrame(results)
+    results.to_csv(eval_csv, index=False)
 
 
 def main_cli():
@@ -42,7 +77,7 @@ def main_cli():
     parser.add_argument("-l", "--local_models", type=Path, nargs="*", 
                         help="List of paths to model files saved locally to evaluate.")
     
-    parser.add_argument("-h", "--hf_models", type=str, nargs="*", 
+    parser.add_argument("-f", "--hf_models", type=str, nargs="*", 
                         help="List of names of models stored on Hugging Face to download and evaluate.")
     
     parser.add_argument("-d", "--data_dir", type=Path, required=True, 
@@ -62,8 +97,6 @@ def main_cli():
     main(buckeye_test, args.eval_out, args.local_models, args.hf_models, 
          args.verbose_results_dir, args.no_space)
     
-    
-
     
 if __name__ == "__main__":
     main_cli()

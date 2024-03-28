@@ -313,7 +313,7 @@ def main_cli():
     #     common_voice_valid = concatenate_datasets([common_voice_valid, new_ds["test"]])
     #     print("Concatenated additional data from Forvo")
 
-    # Remove unnecessary columns
+    # Remove unnecessary columns - have to do this using remove_columns because select_columns wasn't available in older HF versions
     unnecessary_columns = [
         "accent", "age", "client_id", "down_votes", "gender", "locale", "segment", "up_votes", # for Common Voice
         "speaker_id", "chapter_id", "id", #for librispeech
