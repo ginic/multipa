@@ -9,6 +9,7 @@ BUCKEYE_KEY = "buckeye"
 # Extra vocabulary elements for tokenization
 UNKNOWN_TOKEN = "[UNK]"
 PADDING_TOKEN = "[PAD]"
+EMPTY_TRANSCRIPTION = ""
 
 class DataLoadError(Exception):
     pass
@@ -38,8 +39,7 @@ def replace_none(batch: dict, col_key) -> dict:
     """
     ipa = batch[col_key]
     if ipa is None:
-        batch[col_key] = ""
-    
+        batch[col_key] = EMPTY_TRANSCRIPTION    
     return batch 
 
 def clean_text(batch:dict, text_key="ipa", is_remove_space=True):

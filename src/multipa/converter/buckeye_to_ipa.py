@@ -37,6 +37,6 @@ def buckeye_to_ipa(buckeye_transcription:str, is_keep_interrupts:bool=False):
     if len(final_segments) > 0:
         return " ".join(final_segments)
     else: 
-        return " "
+        return ""
 
     

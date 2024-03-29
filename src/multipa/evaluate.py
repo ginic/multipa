@@ -11,7 +11,7 @@ import pandas as pd
 import transformers
 import panphon.distance
 
-from multipa.data_utils import load_buckeye_split, clean_text
+from multipa.data_utils import load_buckeye_split, clean_text, EMPTY_TRANSCRIPTION
  
 
 def main(input_data:datasets.Dataset, eval_csv, local_models:list[Path]|None=None, hf_models:list[str]|None=None, 
@@ -25,8 +25,10 @@ def main(input_data:datasets.Dataset, eval_csv, local_models:list[Path]|None=Non
     test_dataset = input_data.cast_column("audio", datasets.Audio(sampling_rate=16_000)).\
         map(lambda x: clean_text(x, is_remove_space=is_remove_space))
     
-    empty_test_data = test_dataset.filter(lambda x: x["ipa"] == "")
-    non_empty_test_data = test_dataset.filter(lambda x: x["ipa"] != "")
+    empty_test_data = test_dataset.filter(lambda x: x["ipa"] == EMPTY_TRANSCRIPTION)
+    print("Number of test examples with empty transcriptions:", len(empty_test_data))
+    print(empty_test_data)
+    non_empty_test_data = test_dataset.filter(lambda x: x["ipa"] != EMPTY_TRANSCRIPTION)
     phone_errors = evaluate.load("ginic/phone_errors") 
 
     # Final results will have these keys
@@ -35,7 +37,7 @@ def main(input_data:datasets.Dataset, eval_csv, local_models:list[Path]|None=Non
     pfer_key = "mean_phone_feature_error_rate"
     fer_key = "mean_feature_error_rate"
     phone_hallucinations_key = "total_phone_hallucinations"
-    results = {model_key:[], per_key:[], pfer_key:[], fer_key:[], phone_hallucinations_key:[]}
+    results_to_write = {model_key:[], per_key:[], pfer_key:[], fer_key:[], phone_hallucinations_key:[]}
     
     for model in local_models + hf_models: 
         print("Evaluating model:", model)
@@ -49,10 +51,10 @@ def main(input_data:datasets.Dataset, eval_csv, local_models:list[Path]|None=Non
         total_phone_hallucinations = sum(phone_lengths)
 
         # Collect results for this model
-        results[model_key].append(model)
-        results[phone_hallucinations_key].append(total_phone_hallucinations)
+        results_to_write[model_key].append(model)
+        results_to_write[phone_hallucinations_key].append(total_phone_hallucinations)
         for k in [per_key, pfer_key, fer_key]:
-            results[k].append(metrics[k])
+            results_to_write[k].append(metrics[k])
         
         # Write detailed by example evaluation if desired
         if verbose_results_dir:
@@ -74,8 +76,7 @@ def main(input_data:datasets.Dataset, eval_csv, local_models:list[Path]|None=Non
             detailed_results.to_csv(detailed_results_csv, index=False)            
 
     # Write final metrics results
-    pd.DataFrame(results)
-    results.to_csv(eval_csv, index=False)
+    pd.DataFrame(results_to_write).to_csv(eval_csv, index=False)
 
 
 def main_cli():
@@ -98,7 +99,6 @@ def main_cli():
                         help="Use this flag remove spaces in IPA transcription.") 
     
     args = parser.parse_args()
-    print(args)
     
     buckeye_test = load_buckeye_split(args.data_dir, "test")
     main(buckeye_test, args.eval_out, args.local_models, args.hf_models, 

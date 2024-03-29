@@ -213,7 +213,7 @@ def main_cli():
 
     args = parser.parse_args()
     args.output_dir.mkdir(exist_ok=True)
-    stats_file = "{}/presave_trainvalid_stats.tsv".format(args.output_dir)
+    stats_file = args.output_dir / "presave_trainvalid_stats.tsv"
     with open(stats_file, "w") as f:
         f.write("lang\ttrain\tvalid\ttest\ttime\n")
     
@@ -253,8 +253,8 @@ def main_cli():
                             num_proc=args.num_proc)
 
             # Export to json
-            train.to_json("{}/{}_train.json".format(args.output_dir, language))
-            valid.to_json("{}/{}_valid.json".format(args.output_dir, language))
+            train.to_json(args.output_dir / f"{language}_train.json")
+            valid.to_json(args.output_dir / f"{language}_valid.json")
 
             print("{}\ttrain: {}\tvalid: {}\n".format(language, len(train), len(valid)))
             end = time.time()
