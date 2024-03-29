@@ -1,10 +1,12 @@
+"""Evaluates given models on test data, writing evaluation metrics in a summary CSV file. 
+Detailed results on the test data may also be written if desired.
+"""
 import argparse
 from pathlib import Path
 
-
 import datasets
 import evaluate
-import numpy as np
+
 import pandas as pd
 import transformers
 import panphon.distance
@@ -14,6 +16,11 @@ from multipa.data_utils import load_buckeye_split, clean_text
 
 def main(input_data:datasets.Dataset, eval_csv, local_models:list[Path]|None=None, hf_models:list[str]|None=None, 
          verbose_results_dir:Path|None=None, is_remove_space:bool=False):
+    if local_models is None:
+        local_models = []
+    if hf_models is None:
+        hf_models = []
+
     # Set sampling rate to 16K
     test_dataset = input_data.cast_column("audio", datasets.Audio(sampling_rate=16_000)).\
         map(lambda x: clean_text(x, is_remove_space=is_remove_space))
@@ -33,12 +40,12 @@ def main(input_data:datasets.Dataset, eval_csv, local_models:list[Path]|None=Non
     for model in local_models + hf_models: 
         print("Evaluating model:", model)
         pipe = transformers.pipeline("automatic-speech-recognition", model=model)
-        predictions = pipe(non_empty_test_data["audio"])
-        metrics = phone_errors.compute(predictions=predictions, references=non_empty_test_data)
+        predictions = [d["text"] for d in pipe(non_empty_test_data["audio"])]
+        metrics = phone_errors.compute(predictions=predictions, references=non_empty_test_data["ipa"])
         
-        empty_test_data_predictions = pipe(empty_test_data["audio"])
+        empty_test_data_predictions = [d["text"] for d in pipe(empty_test_data["audio"])]
         distance_computer = panphon.distance.Distance()
-        phone_lengths = empty_test_data_predictions.map(lambda p: len(distance_computer.fm.ipa_segs(p)))
+        phone_lengths = [len(distance_computer.fm.ipa_segs(p)) for p in empty_test_data_predictions]
         total_phone_hallucinations = sum(phone_lengths)
 
         # Collect results for this model
@@ -58,14 +65,13 @@ def main(input_data:datasets.Dataset, eval_csv, local_models:list[Path]|None=Non
             empty_test_to_write = empty_test_data.add_column("prediction", empty_test_data_predictions).\
                 add_column("num_hallucinated_phones", phone_lengths).\
                 remove_columns(["audio"])
-            empty_test_to_write.to_csv(hallucinations_csv)
+            empty_test_to_write.to_csv(hallucinations_csv, index=False)
 
             detailed_results = non_empty_test_data.add_column("prediction", predictions).\
                 remove_columns(["audio"])
             for k in ["phone_error_rates", "phone_feature_error_rates", "feature_error_rates"]:
-                detailed_results = detailed_results.add_column(k, results[k])
-            detailed_results.to_csv(detailed_results_csv)            
-        
+                detailed_results = detailed_results.add_column(k, metrics[k])
+            detailed_results.to_csv(detailed_results_csv, index=False)            
 
     # Write final metrics results
     pd.DataFrame(results)
@@ -92,6 +98,7 @@ def main_cli():
                         help="Use this flag remove spaces in IPA transcription.") 
     
     args = parser.parse_args()
+    print(args)
     
     buckeye_test = load_buckeye_split(args.data_dir, "test")
     main(buckeye_test, args.eval_out, args.local_models, args.hf_models, 
