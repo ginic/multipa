@@ -1,5 +1,6 @@
 from pathlib import Path
-from datasets import load_dataset
+
+import datasets
 
 # Constant corpus identifier options
 LIBRISPEECH_KEY = "librispeech"
@@ -118,10 +119,10 @@ def load_common_voice_split(language: str, quality_filter: bool, split:str, hugg
     Returns:
         Huggingface Dataset
     """
-    ipa_dataset = load_dataset("json",
+    ipa_dataset = datasets.load_dataset("json",
                                 data_files=str(Path(data_dir) / json_filename),
                                 split=split)
-    raw_audio = load_dataset(dataset_name,
+    raw_audio = datasets.load_dataset(dataset_name,
                              language,
                              split=huggingface_split,
                              num_proc=num_proc, 
@@ -155,12 +156,12 @@ def load_librispeech_split(split:str, huggingface_split:str, data_dir:str, json_
     """
     # Librispeech starts with the audio path in "file" column and transcription in "text" column
     # You need to finish with audio path in "path" and transcription "sentence"
-    ipa_dataset = load_dataset("json",
+    ipa_dataset = datasets.load_dataset("json",
                                 data_files=str(Path(data_dir) / json_filename),
                                 split=split)
     ipa_dataset = ipa_dataset.rename_column("text", "sentence")
 
-    raw_audio = load_dataset(dataset_name,
+    raw_audio = datasets.load_dataset(dataset_name,
                              split=huggingface_split,
                              num_proc=num_proc, 
                              cache_dir=cache_dir)
@@ -172,6 +173,9 @@ def load_librispeech_split(split:str, huggingface_split:str, data_dir:str, json_
     return full_dataset
 
 def load_buckeye_split(corpus_root_dir: str, split:str):
-    dataset_split = load_dataset("audiofolder", data_dir=corpus_root_dir, split=split)
-    return dataset_split
+    dataset_split = datasets.load_dataset("audiofolder", data_dir=corpus_root_dir, split=split)
+    # Output data has duplicates despite following the format from HuggingFace documentation, so deduplicate based on utterance id
+    deduplicated_df = dataset_split.to_pandas().drop_duplicates("utterance_id")
+    return datasets.Dataset.from_pandas(deduplicated_df)
+
     
