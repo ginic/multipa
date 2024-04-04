@@ -25,14 +25,14 @@ Then install remaining requirements: `pip install .`. You can run `pip install -
 First, run `pip install .` to install this package and required libraries.
 
 You need to convert the transcription in the CommonVoice dataset into IPA before training a model.
-To do so, run `preprocess.py`; for example,
+To do so, run `src/multipa/preprocess.py`; for example,
 ```
 multipa-preprocess \
        -l ja pl mt hu fi el ta \
        --num_proc 48
 ```
 
-Then, run `main.py` to train a model.
+Then, run `src/multipa/main.py` to train a model.
 For example:
 ```
 multipa-train \
@@ -42,11 +42,19 @@ multipa-train \
         -qf False False False False False False False \
         -a True \
         -s "japlmthufielta-nq-ns" \
-        -ns True \
+        --no_space \
         -v vocab.json \
         -e 10
 ```
 for training with 7 languages, 1000 training samples and 200 validation samples for each, where audio samples with bad quality are not filtered out, additional data from Forvo are included, the suffix for the output model folder name is `japlmthufielta-nq-ns`, orthographic spaces are removed, the name of the vocab file is `vocab.json`, and the number of epochs is set to 10.
+
+To evaluate an existing models' performance on the test split of the Buckeye corpus, you can list models from Hugging Face with the `--hf_models` arg or models saved in local files with the `--local_models` flag. If you used the `--no_space` flag during training, you should use it during evaluation as well: 
+```
+multipa-evaluate --hf_models ctaguchi/wav2vec2-large-xlsr-japlmthufielta-ipa-plus-2000 \ 
+ --local_models data/buckeye_model/wav2vec2-large-xlsr-buckeye-ipa_test \
+ --eval_out data/test_eval/buckeye_eval.csv \
+ --verbose_results_dir data/test_eval/detailed_results --no_space --data_dir <path_to_preprocessed_buckeye_folder>
+ ```
 
 ## Model
 You can run the model (trained on 1k samples for each language, 9h in total) [here](https://huggingface.co/ctaguchi/wav2vec2-large-xlsr-japlmthufielta-ipa1000-ns).

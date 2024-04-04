@@ -8,8 +8,9 @@ You should also add project tags for each release in Github, see [Managing relea
 
 ## [Unreleased]
 ### Added
+- Script for evaluating models against the Buckeye test dataset
 - Unit tests with pytest
-- Buckeye Corpus support
+- Buckeye Corpus support in preprocessing and model training
 - Resources directory for pronounciation dictionary and IPA vocabulary files
 - Bash scripts for installation and training on slurm added in the `scripts` folder
 
