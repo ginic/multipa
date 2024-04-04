@@ -1,5 +1,6 @@
-import eng_to_ipa as ipa
+import importlib.resources
 
+import eng_to_ipa as ipa
 
 def make_prondict(filename: str) -> dict:
     with open(filename, "r") as f:
@@ -18,15 +19,18 @@ def make_prondict(filename: str) -> dict:
 
 class English2IPA:
 
-    
-    def __init__(self, keep_suprasegmental = False, filename = "cmudict-0.7b-ipa.txt"):
-        """_summary_
+    # TODO Use cmudict from file resources
+    def __init__(self, keep_suprasegmental = False, filename = None):
+        """Generate english 
 
         Args:
             keep_suprasegmental (bool, optional): Set to true to keep stress markers. Defaults to False.
             filename (str, optional): Path to ipa dictionary filename. Defaults to "cmudict-0.7b-ipa.txt".
         """
-        self.prondict = make_prondict(filename)
+        if filename is None:
+            self.prondict = make_prondict(importlib.resources.files("multipa.resources").joinpath("cmudict-0.7b-ipa.txt"))
+        else: 
+            self.prondict = make_prondict(filename)
         self.keep_suprasegmental = keep_suprasegmental
 
     def english_generate_ipa(self, sent: str):
@@ -39,7 +43,7 @@ class English2IPA:
             else:
                 addendum = self.prondict[w][0]
             if not self.keep_suprasegmental:
-                addendum.replace("ˈ", "").replace("ˌ", "")
+                addendum = addendum.replace("ˈ", "").replace("ˌ", "")
             transcription.append(addendum)
         output = " ".join(transcription)
         return output

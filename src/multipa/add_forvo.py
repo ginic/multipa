@@ -1,6 +1,6 @@
+# TODO This assumes a path structure which might not exist. Make the path configurable input by the user.
 import os
 import glob
-import subprocess
 from datasets import Dataset, Audio, concatenate_datasets
 import pandas as pd
 from typing import List
