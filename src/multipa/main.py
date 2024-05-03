@@ -513,9 +513,12 @@ def main_cli():
     if args.use_gpu:
         import pynvml
         pynvml.nvmlInit()
-        handle = pynvml.nvmlDeviceGetHandleByIndex(0)
-        info = pynvml.nvmlDeviceGetMemoryInfo(handle)
-        print(f"GPU memory occupied: {info.used//1024**2} MB.")
+        num_gpus = torch.cuda.device_count()
+        for i in range(num_gpus):
+            handle = pynvml.nvmlDeviceGetHandleByIndex(i)
+            info = pynvml.nvmlDeviceGetMemoryInfo(handle)
+            print(f"GPU {i} handle: {handle}")
+            print(f"GPU {i} memory occupied: {info.used//1024**2} MB.")
         
     #trainer.evaluate()
     trainer.save_state()

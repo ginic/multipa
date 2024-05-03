@@ -51,6 +51,11 @@ dev = [
     "black",
 ]
 
+# Useful dependencies for GPU usage monitoring
+gpu = [
+    "pynvml"
+]
+
 # If your project contains scripts you'd like to be available command line, you can define them here.
 # The value must be of the form "<package_name>:<module_name>.<function>"
 [project.scripts]
