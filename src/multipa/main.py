@@ -7,14 +7,21 @@ from typing import Dict, List, Optional, Union
 
 from dataclasses import dataclass
 from datasets import Audio, concatenate_datasets
+import evaluate
+import numpy as np
 from transformers import Wav2Vec2CTCTokenizer, Wav2Vec2FeatureExtractor, Wav2Vec2Processor, Wav2Vec2ForCTC, TrainingArguments, Trainer
 import torch
 
 from multipa.data_utils import UNKNOWN_TOKEN, PADDING_TOKEN, BUCKEYE_KEY, COMMONVOICE_KEY, LIBRISPEECH_KEY, clean_text, load_buckeye_split, load_common_voice_split, load_librispeech_split
 
+PHONE_ERRORS_COMPUTER = evaluate.load("ginic/phone_errors")
+
 # Ignore Forvo for now, I don't have access to the data
 # from multipa.add_forvo import add_language
 
+
+# Following class comes from https://github.com/huggingface/transformers/blob/9a06b6b11bdfc42eea08fa91d0c737d1863c99e3/examples/research_projects/wav2vec2/run_asr.py#L81
+# and https://colab.research.google.com/github/patrickvonplaten/notebooks/blob/master/Fine_Tune_XLSR_Wav2Vec2_on_Turkish_ASR_with_%F0%9F%A4%97_Transformers.ipynb#scrollTo=Slk403unUS91
 @dataclass
 class DataCollatorCTCWithPadding:
     """
@@ -152,14 +159,40 @@ def create_vocabulary(*datasets, use_resource_vocab=True):
     return vocab_dict_ipa
 
 
+def compute_metrics(pred, processor):
+    """Returns metrics results for at incremental times in training
+
+    Args:
+        pred (_type_): _description_
+    """    
+    pred_logits = pred.predictions
+    pred_ids = np.argmax(pred_logits, axis=-1)
+
+    pred.label_ids[pred.label_ids == -100] = processor.tokenizer.pad_token_id
+
+    pred_str = processor.batch_decode(pred_ids)
+    # we do not want to group tokens when computing the metrics
+    label_str = processor.batch_decode(pred.label_ids, group_tokens=False)
+
+    return PHONE_ERRORS_COMPUTER.compute(predictions=pred_str, references=label_str)
+
+
+
 def main_cli():
     # Arguments
     parser = argparse.ArgumentParser(description="Trains the speech recognition model. Specify corpus, "\
                                      "model training parameters and language details if needed. ")
     parser.add_argument("-e", "--num_train_epochs", type=int, default=30,
                         help="Specify the number of train epochs. By default it's set to 30.")
+    parser.add_argument("-lr", "--learning_rate", type=float, default= 3e-4, 
+                        help="The learning rate for the optimizer during training")
+    parser.add_argument("-bs", "--per_device_train_batch_size", type=int, default=2, 
+                        help="The batch size per GPU/CPU for training, defaults to 2.")
+    parser.add_argument("-ga", "--gradient_accumulation_steps", type=int, default=4, 
+                        help="The number of gradient accumulation steps during training, defaults to 4")
+    
     parser.add_argument("--num_proc", type=int, default=8,
-                        help="Specify the number of CPUs for preprocessing. Default set to 24.")
+                        help="Specify the number of CPUs for preprocessing. Default set to 8.")
 
     parser.add_argument("-ml", "--max-length", type=int, default=12, help="Maximum audio length of training & validation samples in seconds")
     parser.add_argument("-ns", "--no_space", action='store_true',
@@ -359,10 +392,12 @@ def main_cli():
 
     # Create a Feature Extractor
     print("Creating Feature Extractor...")
+    # See notes on feature extractor settings at 
+    # https://colab.research.google.com/github/patrickvonplaten/notebooks/blob/master/Fine_tuning_Wav2Vec2_for_English_ASR.ipynb#scrollTo=mYcIiR2FQ96i
     feature_extractor = Wav2Vec2FeatureExtractor(feature_size=1,
                                                  sampling_rate=16_000,
                                                  padding_value=0.0,
-                                                 do_normalize=True,
+                                                 do_normalize=True, # zero-mean-unit variance normalized
                                                  return_attention_mask=True)
     print("Feature Extractor created") 
 
@@ -432,22 +467,32 @@ def main_cli():
     gc.collect()
     torch.cuda.empty_cache()
 
+    # How will metrics be computed? 
+    eval_fn = lambda x: compute_metrics(x, processor=processor_ipa)
+
+
     # Training
+    # See https://huggingface.co/docs/transformers/v4.18.0/en/performance#optimizer for options on tuning and performance
     print("Beginning the training...") 
     training_args = TrainingArguments(
         output_dir=model_dir,
         group_by_length=True,
-        per_device_train_batch_size=2,
-        gradient_accumulation_steps=4,
-        evaluation_strategy="steps",
+        # Effective batch size = per_device_train_batch_size * gradient_accumulation_steps
+        per_device_train_batch_size=args.per_device_train_batch_size,
+        gradient_accumulation_steps=args.gradient_accumulation_steps,
+        #gradient_checkpointing=True, # Can use this if memory is a problem, but training will be slower
+        #optim="adafactor", #Can use if memory is a problem, but convergence might be slower
         num_train_epochs=args.num_train_epochs,
-        fp16= args.use_gpu,
-        save_steps=100,
-        eval_steps=100,
-        logging_steps=10,
-        learning_rate=3e-4,
+        fp16=args.use_gpu, # see https://huggingface.co/docs/transformers/v4.18.0/en/performance#fp16-training
+        evaluation_strategy="epoch",
+        save_strategy="epoch",
+        #save_steps=500,
+        #eval_steps=500,
+        logging_steps=100,
+        learning_rate=args.learning_rate,
         warmup_steps=500,
         save_total_limit=2,
+        load_best_model_at_end=True
     )
 
     trainer = Trainer(
@@ -456,11 +501,23 @@ def main_cli():
         args=training_args,
         train_dataset=full_train_data,
         eval_dataset=full_valid_data,
+        compute_metrics=eval_fn,
         tokenizer=processor_ipa.feature_extractor,
         )
     
-    trainer.train()
-    trainer.evaluate()
+    train_result = trainer.train()
+    print("Training finished:")
+    print(train_result)
+
+    # Set up for tracking GPU usage if using CUDA, see https://huggingface.co/docs/transformers/v4.18.0/en/performance
+    if args.use_gpu:
+        import pynvml
+        pynvml.nvmlInit()
+        handle = pynvml.nvmlDeviceGetHandleByIndex(0)
+        info = pynvml.nvmlDeviceGetMemoryInfo(handle)
+        print(f"GPU memory occupied: {info.used//1024**2} MB.")
+        
+    #trainer.evaluate()
     trainer.save_state()
     trainer.save_model()
     # You also need to save the tokenizer in order to save the model
