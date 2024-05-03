@@ -140,7 +140,7 @@ def resolve_filepath(basename:str, suffix:str, path_prefix:str):
     return str(full_path.with_suffix(suffix))
 
 
-def process_buckeye_subfolder(input_directory:Path, output_dir:Path, hugging_face_split:str, is_keep_interrupts:bool=False):
+def process_buckeye_subfolder(input_directory:Path, output_dir:Path, hugging_face_split:str, demographics_df = pd.DataFrame, is_keep_interrupts:bool=False):
     """Get IPA transcriptions for Buckeye, then write output in the appropriate HuggingFace audiofolder format in output_dir
     Return the number of utterances processed. 
     Note that Hugging Face is fussy about split names, they have to be one of specific keywords and are case sensitive, 
@@ -163,6 +163,12 @@ def process_buckeye_subfolder(input_directory:Path, output_dir:Path, hugging_fac
     orthography_df = pd.read_csv(orthography_file, sep="\t", header=None, names=["utterance_id", "duration", "text"]).drop(columns="duration")
     transcriptions_df = transcriptions_df.join(orthography_df.set_index("utterance_id"), on="utterance_id")
     transcriptions_df["ipa"] = transcriptions_df["buckeye_transcript"].apply(lambda x: buckeye_to_ipa(x, is_keep_interrupts))
+    # Filter out empty transcriptions (This should only remove rows when is_keep_interrupts=False)
+    transcriptions_df = transcriptions_df.loc[(transcriptions_df["ipa"] != "") & (~transcriptions_df["ipa"].isspace())]
+
+    # Join in demographic info
+    transcriptions_df["speaker_id"] = transcriptions_df["utterance_id"].apply(lambda x: x[:3].upper())
+    transcriptions_df = transcriptions_df.join(demographics_df, on="speaker_id")
 
     # The file paths need to be relative to the parent folder for Hugging face    
     output_split_dir = output_dir / hugging_face_split
@@ -221,9 +227,10 @@ def main_cli():
     if args.corpus == BUCKEYE_KEY:
         start = time.time()
         sizes = {}
+        demographics_df = pd.read_csv(args.input_dir / "speaker_demos.txt", sep=" ", names=["speaker_id", "speaker_gender", "speaker_age_range", "interviewer_gender"])
         for original_split, huggingface_split in [("Train", "train"), ("Dev", "validation"), ("Test", "test")]:
             input_split = args.input_dir / original_split
-            sizes[huggingface_split] = process_buckeye_subfolder(input_split, args.output_dir, huggingface_split, args.keep_interrupts)
+            sizes[huggingface_split] = process_buckeye_subfolder(input_split, args.output_dir, huggingface_split, demographics_df, args.keep_interrupts)
 
         print("Buckeye num files per split:", sizes)
         end = time.time()

@@ -161,9 +161,6 @@ def create_vocabulary(*datasets, use_resource_vocab=True):
 
 def compute_metrics(pred, processor):
     """Returns metrics results for at incremental times in training
-
-    Args:
-        pred (_type_): _description_
     """    
     pred_logits = pred.predictions
     pred_ids = np.argmax(pred_logits, axis=-1)
@@ -202,19 +199,18 @@ def main_cli():
     parser.add_argument("-s", "--suffix", type=str, default="",
                         help="Optional suffix to use when naming vocab and model folders")
     parser.add_argument("-g", "--use_gpu", action="store_true", help="Use this flag if a GPU is available for training.")
-
+    parser.add_argument("-ts", "--train_seed", type=int, default=7, 
+                        help="Random seed for selecting a subset of training data.")
+    parser.add_argument("-vs", "--val_seed", type=int, default=99, 
+                        help="Random seed for selecting a subset of validation data.")
     
-    # TODO This is a bit confusing, but it's basically reading the train/test splits from the preprocessing output. Might not be necessary for Buckeye
+    # This is a bit confusing, but it's basically reading the train/test splits from the preprocessing output. 
     parser.add_argument("-dd", "--data_dir", type=Path, default="data_new",
                         help="Specify the directory path for the training/validation data files." \
                         "Default is set to `data_new`, which stores the data from the as-of-now newest" \
                         "`mozilla-foundation/common_voice_11_0`.")
     
-    # TODO Can become subparser
-    #parser.add_argument("-ds", "--dataset", type=str, default="mozilla-foundation/common_voice_11_0",
-    #                    help="Specify the dataset name. Default is set to" \
-    #                    "`mozilla-foundation/common_voice_11_0`.")
-    
+
     # TODO Unclear if needed for buckeye
     parser.add_argument("--cache_dir", type=str, default="~/.cache/huggingface/datasets",
                         help="Specify the cache directory's path if you choose to load dataset from non-default cache.")
@@ -260,6 +256,11 @@ def main_cli():
     buckeye_subparser.add_argument("-ve", "--val_samples", type=int,
                         help="Specify the number of samples to be used as the test data. "\
                         "You can type an irrationally large number to pick up the maximum value.")
+    buckeye_subparser.add_argument("-pf", "--percent_female", type=float, default=0.5, 
+                                   help="The percentage of training examples that should come from female speakers.")
+    buckeye_subparser.add_argument("-sr", "--speaker_restriction", nargs="*", type=str, 
+                                   help="A list of speakers ids to restrict the training data to.")
+    
         
     args = parser.parse_args()
     
@@ -282,8 +283,8 @@ def main_cli():
         train_limit = min(args.train_samples, len(train_data))
         valid_limit = min(args.val_samples, len(valid_data))
        
-        full_train_data = train_data.shuffle(seed=7).select(range(train_limit))
-        full_valid_data = valid_data.shuffle(seed=99).select(range(valid_limit))
+        full_train_data = train_data.shuffle(seed=args.train_seed).select(range(train_limit))
+        full_valid_data = valid_data.shuffle(seed=args.valid_seed).select(range(valid_limit))
 
         with open(stats_file, "a") as f:
             f.write(f"{dataset_name} en {len(full_train_data)} {len(full_valid_data)}\n")
@@ -291,13 +292,25 @@ def main_cli():
     elif args.corpus == BUCKEYE_KEY: 
         dataset_name = "buckeye"
         train_data = load_buckeye_split(args.data_dir, "test")
+        # Handle restrictions to particular individuals
+        if args.speaker_restrictions:
+            train_data = train_data.filter(lambda x: x["speaker_id"] in args.speaker_restrictions)
+        
+        # Select equal numbers of examples matching the gender split
+        num_female_examples = len(train_data) * args.percent_female
+        female_examples = train_data.filter(lambda x: x["speaker_gender"]=="f").shuffle(seed=args.train_seed).select(range(num_female_examples))
+        num_male_examples = len(train_data) - num_female_examples
+        
+        
+        train_limit = min(args.train_samples, len(train_data))
+        
+        full_train_data = train_data.shuffle(seed=args.train_seed).select(range(train_limit))
+
         valid_data = load_buckeye_split(args.data_dir, "validation")
         # Shuffle and clip to the specified sample size using datasets's Dataset.select(). 
-        # Shuffle because datasets are often ordered by speaker and you want a variety of speakers.
-        train_limit = min(args.train_samples, len(train_data))
         valid_limit = min(args.val_samples, len(valid_data))
-        full_train_data = train_data.shuffle(seed=7).select(range(train_limit))
-        full_valid_data = valid_data.shuffle(seed=99).select(range(valid_limit))
+        # Shuffle because datasets are often ordered by speaker and you want a variety of speakers.
+        full_valid_data = valid_data.shuffle(seed=args.valid_seed).select(range(valid_limit))
 
         with open(stats_file, "a") as f:
             f.write(f"{dataset_name} en {len(full_train_data)} {len(full_valid_data)}\n")
@@ -322,8 +335,8 @@ def main_cli():
             # Shuffle because datasets are often ordered by speaker and you want a variety of speakers.
             train_limit = min(train_sample, len(train_data))
             valid_limit = min(valid_sample, len(valid_data))
-            train_data = train_data.shuffle(seed=7).select(range(train_limit))
-            valid_data = valid_data.shuffle(seed=99).select(range(valid_limit))
+            train_data = train_data.shuffle(seed=args.train_seed).select(range(train_limit))
+            valid_data = valid_data.shuffle(seed=args.valid_seed).select(range(valid_limit))
             
             train_list.append(train_data)
             valid_list.append(valid_data)
@@ -350,7 +363,7 @@ def main_cli():
     unnecessary_columns = [
         "accent", "age", "client_id", "down_votes", "gender", "locale", "segment", "up_votes", # for Common Voice
         "speaker_id", "chapter_id", "id", #for librispeech
-        ""
+        "speaker_gender", "speaker_age_range", "interviewer_gender", "buckeye_transcript", "duration", "utterance_id", "text", # for Buckeye
         ]
     columns_to_remove = set(unnecessary_columns).intersection(full_train_data.column_names)
     print("Removing unnecessary columns:", columns_to_remove)
@@ -468,7 +481,13 @@ def main_cli():
     torch.cuda.empty_cache()
 
     # How will metrics be computed? 
-    eval_fn = lambda x: compute_metrics(x, processor=processor_ipa)
+    def eval_compute_metrics(x):
+        eval_results = compute_metrics(x, processor_ipa)
+        # Don't keep example level results
+        del eval_results["phone_error_rates"]
+        del eval_results["feature_error_rates"]
+        del eval_results["phone_feature_error_rates"]
+        return eval_results
 
 
     # Training
@@ -501,14 +520,14 @@ def main_cli():
         args=training_args,
         train_dataset=full_train_data,
         eval_dataset=full_valid_data,
-        compute_metrics=eval_fn,
+        compute_metrics=eval_compute_metrics,
         tokenizer=processor_ipa.feature_extractor,
         )
     
     train_result = trainer.train()
-    print("Training finished:")
-    print(train_result)
+    print("Training finished:", train_result)
 
+    
     # Set up for tracking GPU usage if using CUDA, see https://huggingface.co/docs/transformers/v4.18.0/en/performance
     if args.use_gpu:
         import pynvml
@@ -519,8 +538,14 @@ def main_cli():
             info = pynvml.nvmlDeviceGetMemoryInfo(handle)
             print(f"GPU {i} handle: {handle}")
             print(f"GPU {i} memory occupied: {info.used//1024**2} MB.")
-        
-    #trainer.evaluate()
+    
+    eval_results = trainer.evaluate()
+    print("Final evaluation results:", eval_results)
+    final_eval_file = output_dir / "final_evaluation.json"
+    with open(final_eval_file, 'w') as eval_json:
+        json.dump(eval_results, final_eval_file)
+
+    
     trainer.save_state()
     trainer.save_model()
     # You also need to save the tokenizer in order to save the model
