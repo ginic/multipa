@@ -272,6 +272,11 @@ def main_cli():
     with open(stats_file, "w") as f:
         f.write("corpus lang train valid\n")
 
+    with open(output_dir / f"training_args.json", "w") as train_args_json:
+        json.dump(**args, train_args_json)
+
+    final_results_to_write = {}
+
     if args.corpus == LIBRISPEECH_KEY:
         dataset_name = "librispeech_asr"
         train_data = load_librispeech_split("train", "train.clean.100", args.data_dir, f"en_train{args.suffix}.json", 
@@ -284,33 +289,46 @@ def main_cli():
         valid_limit = min(args.val_samples, len(valid_data))
        
         full_train_data = train_data.shuffle(seed=args.train_seed).select(range(train_limit))
-        full_valid_data = valid_data.shuffle(seed=args.valid_seed).select(range(valid_limit))
+        full_valid_data = valid_data.shuffle(seed=args.val_seed).select(range(valid_limit))
 
         with open(stats_file, "a") as f:
             f.write(f"{dataset_name} en {len(full_train_data)} {len(full_valid_data)}\n")
 
     elif args.corpus == BUCKEYE_KEY: 
         dataset_name = "buckeye"
-        train_data = load_buckeye_split(args.data_dir, "test")
+        train_data = load_buckeye_split(args.data_dir, "train")
+
+        # For Buckeye, it's important to remove examples that are too long first 
+        # to maintain the specified gender split and restrictions to certain speakers
+        train_data = train_data.filter(lambda x: x["duration"] > args.max_length)
+
         # Handle restrictions to particular individuals
-        if args.speaker_restrictions:
-            train_data = train_data.filter(lambda x: x["speaker_id"] in args.speaker_restrictions)
+        if args.speaker_restriction:
+            train_data = train_data.filter(lambda x: x["speaker_id"] in args.speaker_restriction)
         
         # Select equal numbers of examples matching the gender split
-        num_female_examples = len(train_data) * args.percent_female
-        female_examples = train_data.filter(lambda x: x["speaker_gender"]=="f").shuffle(seed=args.train_seed).select(range(num_female_examples))
-        num_male_examples = len(train_data) - num_female_examples
-        
-        
-        train_limit = min(args.train_samples, len(train_data))
-        
-        full_train_data = train_data.shuffle(seed=args.train_seed).select(range(train_limit))
+        num_female_examples = int(args.train_samples * args.percent_female)
+        female_examples = train_data.filter(lambda x: x["speaker_gender"]=="f")
+        female_examples = female_examples.shuffle(seed=args.train_seed).select(range(min(num_female_examples, len(female_examples))))
+        final_results_to_write["train_num_female_examples"] = len(female_examples)
+        final_results_to_write["train_duration_female_examples"] = sum(female_examples["duration"])
+        print("Number of examples from female speakers:", final_results_to_write["train_num_female_examples"])
+        print("Total duration (seconds) of examples from female speakers :", final_results_to_write["train_duration_female_examples"])
 
+        num_male_examples = args.train_samples - num_female_examples
+        male_examples = train_data.filter(lambda x: x["speaker_gender"]=="m")
+        male_examples = male_examples.shuffle(seed=args.train_seed).select(range(min(num_male_examples, len(male_examples))))
+        final_results_to_write["train_num_male_examples"] = len(male_examples)
+        final_results_to_write["train_duration_male_examples"] = sum(male_examples["duration"])
+        print("Number of examples from male speakers:", final_results_to_write["train_num_male_examples"])
+        print("Total duration (seconds) of examples from male speakers :", final_results_to_write["train_duration_male_examples"])
+
+        full_train_data = concatenate_datasets([female_examples, male_examples])
+        
         valid_data = load_buckeye_split(args.data_dir, "validation")
-        # Shuffle and clip to the specified sample size using datasets's Dataset.select(). 
         valid_limit = min(args.val_samples, len(valid_data))
         # Shuffle because datasets are often ordered by speaker and you want a variety of speakers.
-        full_valid_data = valid_data.shuffle(seed=args.valid_seed).select(range(valid_limit))
+        full_valid_data = valid_data.shuffle(seed=args.val_seed).select(range(valid_limit))
 
         with open(stats_file, "a") as f:
             f.write(f"{dataset_name} en {len(full_train_data)} {len(full_valid_data)}\n")
@@ -336,7 +354,7 @@ def main_cli():
             train_limit = min(train_sample, len(train_data))
             valid_limit = min(valid_sample, len(valid_data))
             train_data = train_data.shuffle(seed=args.train_seed).select(range(train_limit))
-            valid_data = valid_data.shuffle(seed=args.valid_seed).select(range(valid_limit))
+            valid_data = valid_data.shuffle(seed=args.val_seed).select(range(valid_limit))
             
             train_list.append(train_data)
             valid_list.append(valid_data)
@@ -527,7 +545,6 @@ def main_cli():
     train_result = trainer.train()
     print("Training finished:", train_result)
 
-    
     # Set up for tracking GPU usage if using CUDA, see https://huggingface.co/docs/transformers/v4.18.0/en/performance
     if args.use_gpu:
         import pynvml
@@ -540,10 +557,10 @@ def main_cli():
             print(f"GPU {i} memory occupied: {info.used//1024**2} MB.")
     
     eval_results = trainer.evaluate()
+    final_results_to_write.update(eval_results)
     print("Final evaluation results:", eval_results)
-    final_eval_file = output_dir / "final_evaluation.json"
-    with open(final_eval_file, 'w') as eval_json:
-        json.dump(eval_results, final_eval_file)
+    with open(output_dir / "final_evaluation.json", 'w') as eval_json:
+        json.dump(final_results_to_write, eval_json)
 
     
     trainer.save_state()
