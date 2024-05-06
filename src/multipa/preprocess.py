@@ -157,38 +157,39 @@ def process_buckeye_subfolder(input_directory:Path, output_dir:Path, hugging_fac
         int: Number of files processed
     """
     # Combine orthographic transcriptions, Buckeye and IPA transcriptions
+    utt_id = "utterance_id"
+    speaker_id = "speaker_id"
     transcription_file = input_directory / "transcription_data.txt"
-    transcriptions_df = pd.read_csv(transcription_file, sep="\t", header=None, names=["utterance_id", "duration", "buckeye_transcript"])
+    transcriptions_df = pd.read_csv(transcription_file, sep="\t", header=None, names=[utt_id, "duration", "buckeye_transcript"])
     orthography_file = input_directory / "orthographic_data.txt"
-    orthography_df = pd.read_csv(orthography_file, sep="\t", header=None, names=["utterance_id", "duration", "text"]).drop(columns="duration")
-    transcriptions_df = transcriptions_df.join(orthography_df.set_index("utterance_id"), on="utterance_id")
+    orthography_df = pd.read_csv(orthography_file, sep="\t", header=None, names=[utt_id, "duration", "text"]).drop(columns="duration")
+    transcriptions_df = transcriptions_df.join(orthography_df.set_index(utt_id), on=utt_id)
     transcriptions_df["ipa"] = transcriptions_df["buckeye_transcript"].apply(lambda x: buckeye_to_ipa(x, is_keep_interrupts))
     # Filter out empty transcriptions (This should only remove rows when is_keep_interrupts=False)
-    transcriptions_df = transcriptions_df.loc[(transcriptions_df["ipa"] != "") & (~transcriptions_df["ipa"].isspace())]
+    #import pdb; pdb.set_trace()
+    transcriptions_df = transcriptions_df.loc[(transcriptions_df["ipa"] != "") & (~transcriptions_df["ipa"].str.isspace())]
 
     # Join in demographic info
-    transcriptions_df["speaker_id"] = transcriptions_df["utterance_id"].apply(lambda x: x[:3].upper())
-    transcriptions_df = transcriptions_df.join(demographics_df, on="speaker_id")
+    transcriptions_df[speaker_id] = transcriptions_df[utt_id].apply(lambda x: x[:3].upper())
+    transcriptions_df = pd.merge(transcriptions_df, demographics_df, how="left", on=speaker_id)
 
     # The file paths need to be relative to the parent folder for Hugging face    
     output_split_dir = output_dir / hugging_face_split
     output_split_dir.mkdir(exist_ok=True)    
     audio_suffix = ".wav"
-    transcriptions_df["file_path"] = transcriptions_df["utterance_id"].apply(lambda x: resolve_filepath(x, audio_suffix, output_split_dir))
-    transcriptions_df["file_name"] = transcriptions_df["utterance_id"].apply(lambda x: x + audio_suffix)
+    transcriptions_df["file_path"] = transcriptions_df[utt_id].apply(lambda x: resolve_filepath(x, audio_suffix, output_split_dir))
+    transcriptions_df["file_name"] = transcriptions_df[utt_id].apply(lambda x: x + audio_suffix)
 
     # CSV is complete
-    # TODO Is it necessary to output JSON here also? 
     transcriptions_df.to_csv(output_split_dir / "metadata.csv", index=False)
 
     # Copy audio to destination folder
-    audio_files = list(input_directory.glob(f"*{audio_suffix}"))
-    # Number of audio files should match number of transcriptions
-    assert len(audio_files) == len(transcriptions_df)
-    for f in audio_files:
-        shutil.copy2(f, output_split_dir)
+    for f in transcriptions_df["file_name"]:
+        shutil.copy2(input_directory / f, output_split_dir)
 
-    return len(audio_files)
+    # Number of audio files should match number of transcriptions
+    assert len(list(output_split_dir.glob(f"*{audio_suffix}"))) == len(transcriptions_df)
+    return len(transcriptions_df)
 
 
 def main_cli():
@@ -228,6 +229,7 @@ def main_cli():
         start = time.time()
         sizes = {}
         demographics_df = pd.read_csv(args.input_dir / "speaker_demos.txt", sep=" ", names=["speaker_id", "speaker_gender", "speaker_age_range", "interviewer_gender"])
+        demographics_df["speaker_id"] = demographics_df["speaker_id"].astype(str)
         for original_split, huggingface_split in [("Train", "train"), ("Dev", "validation"), ("Test", "test")]:
             input_split = args.input_dir / original_split
             sizes[huggingface_split] = process_buckeye_subfolder(input_split, args.output_dir, huggingface_split, demographics_df, args.keep_interrupts)
