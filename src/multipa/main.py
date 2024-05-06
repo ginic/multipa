@@ -205,7 +205,7 @@ def main_cli():
                         help="Random seed for selecting a subset of validation data.")
     
     # This is a bit confusing, but it's basically reading the train/test splits from the preprocessing output. 
-    parser.add_argument("-dd", "--data_dir", type=Path, default="data_new",
+    parser.add_argument("-dd", "--data_dir", type=str, default="data_new",
                         help="Specify the directory path for the training/validation data files." \
                         "Default is set to `data_new`, which stores the data from the as-of-now newest" \
                         "`mozilla-foundation/common_voice_11_0`.")
@@ -273,7 +273,7 @@ def main_cli():
         f.write("corpus lang train valid\n")
 
     with open(output_dir / f"training_args.json", "w") as train_args_json:
-        json.dump(**args, train_args_json)
+        json.dump(vars(args), train_args_json)
 
     final_results_to_write = {}
 
@@ -300,7 +300,7 @@ def main_cli():
 
         # For Buckeye, it's important to remove examples that are too long first 
         # to maintain the specified gender split and restrictions to certain speakers
-        train_data = train_data.filter(lambda x: x["duration"] > args.max_length)
+        train_data = train_data.filter(lambda x: x["duration"] < args.max_length)
 
         # Handle restrictions to particular individuals
         if args.speaker_restriction:
@@ -324,6 +324,7 @@ def main_cli():
         print("Total duration (seconds) of examples from male speakers :", final_results_to_write["train_duration_male_examples"])
 
         full_train_data = concatenate_datasets([female_examples, male_examples])
+        print("Full train dataset size:", len(full_train_data))
         
         valid_data = load_buckeye_split(args.data_dir, "validation")
         valid_limit = min(args.val_samples, len(valid_data))
