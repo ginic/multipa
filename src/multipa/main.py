@@ -153,9 +153,8 @@ def create_vocabulary(*datasets, use_resource_vocab=True):
     # Add in data from resources file
     if use_resource_vocab: 
         all_vocab_file = importlib.resources.files("multipa.resources").joinpath("full_vocab_ipa.txt")
-        with all_vocab_file as f:
-            new_vocab = set([l.strip() for l in f.read_text().splitlines()])
-            vocab_set = vocab_set | new_vocab
+        new_vocab = set([l.strip() for l in all_vocab_file.read_text().splitlines()])
+        vocab_set = vocab_set | new_vocab
         
     vocab_dict_ipa = {v: k for k, v in enumerate(vocab_set)}
     vocab_dict_ipa[UNKNOWN_TOKEN] = len(vocab_dict_ipa)
