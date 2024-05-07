@@ -183,8 +183,8 @@ def main_cli():
     # Arguments
     parser = argparse.ArgumentParser(description="Trains the speech recognition model. Specify corpus, "\
                                      "model training parameters and language details if needed. ")
-    parser.add_argument("-e", "--num_train_epochs", type=int, default=30,
-                        help="Specify the number of train epochs. By default it's set to 30.")
+    parser.add_argument("-e", "--num_train_epochs", type=int, default=10,
+                        help="Specify the number of train epochs. By default it's set to 10.")
     parser.add_argument("-lr", "--learning_rate", type=float, default= 3e-4, 
                         help="The learning rate for the optimizer during training")
     parser.add_argument("-bs", "--per_device_train_batch_size", type=int, default=2, 
@@ -195,7 +195,7 @@ def main_cli():
     parser.add_argument("--num_proc", type=int, default=8,
                         help="Specify the number of CPUs for preprocessing. Default set to 8.")
 
-    parser.add_argument("-ml", "--max-length", type=int, default=12, help="Maximum audio length of training & validation samples in seconds")
+    parser.add_argument("-ml", "--max-length", type=int, default=12, help="Maximum audio length of training & validation samples in seconds. Defaults to 12.")
     parser.add_argument("-ns", "--no_space", action='store_true',
                         help="Use this flag remove spaces in IPA transcription.") 
     parser.add_argument("-o", "--output_dir", type=str, 
@@ -204,9 +204,9 @@ def main_cli():
                         help="Optional suffix to use when naming vocab and model folders")
     parser.add_argument("-g", "--use_gpu", action="store_true", help="Use this flag if a GPU is available for training.")
     parser.add_argument("-ts", "--train_seed", type=int, default=7, 
-                        help="Random seed for selecting a subset of training data.")
+                        help="Random seed for selecting a subset of training data. Defaults to 7.")
     parser.add_argument("-vs", "--val_seed", type=int, default=99, 
-                        help="Random seed for selecting a subset of validation data.")
+                        help="Random seed for selecting a subset of validation data. Defaults to 99.")
     
     # This is a bit confusing, but it's basically reading the train/test splits from the preprocessing output. 
     parser.add_argument("-dd", "--data_dir", type=str, default="data_new",
@@ -261,7 +261,7 @@ def main_cli():
                         help="Specify the number of samples to be used as the test data. "\
                         "You can type an irrationally large number to pick up the maximum value.")
     buckeye_subparser.add_argument("-pf", "--percent_female", type=float, default=0.5, 
-                                   help="The percentage of training examples that should come from female speakers.")
+                                   help="The percentage (as float) of training examples that should come from female speakers. Defaults to 0.5")
     buckeye_subparser.add_argument("-sr", "--speaker_restriction", nargs="*", type=str, 
                                    help="A list of speakers ids to restrict the training data to.")
     
