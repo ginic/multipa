@@ -1,5 +1,7 @@
 """Evaluates given models on test data, writing evaluation metrics in a summary CSV file. 
 Detailed results on the test data may also be written if desired.
+
+Currently only Buckeye data is supported for evaluation.
 """
 import argparse
 from pathlib import Path

@@ -4,6 +4,7 @@ import importlib.resources
 import json
 from pathlib import Path
 from typing import Dict, List, Optional, Union
+import warnings
 
 from dataclasses import dataclass
 from datasets import Audio, concatenate_datasets
@@ -13,6 +14,9 @@ from transformers import Wav2Vec2CTCTokenizer, Wav2Vec2FeatureExtractor, Wav2Vec
 import torch
 
 from multipa.data_utils import UNKNOWN_TOKEN, PADDING_TOKEN, BUCKEYE_KEY, COMMONVOICE_KEY, LIBRISPEECH_KEY, clean_text, load_buckeye_split, load_common_voice_split, load_librispeech_split
+
+# Transformers gives a lot of warnings and it's hard to check training progress, so only print them once
+warnings.filterwarnings("ignore", category=UserWarning)
 
 PHONE_ERRORS_COMPUTER = evaluate.load("ginic/phone_errors")
 
