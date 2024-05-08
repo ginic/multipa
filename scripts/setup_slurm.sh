@@ -19,6 +19,7 @@ conda install pytorch==1.11.0 torchvision==0.12.0 torchaudio==0.11.0 cudatoolkit
 
 pip install --upgrade pip
 
-pip install .[gpu]
+pip install .[gpu,test]
 python -m unidic download
 
+pytest
