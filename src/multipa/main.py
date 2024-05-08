@@ -1,6 +1,4 @@
 import argparse
-import collections
-import collections.abc
 import gc
 import importlib.resources
 import json
