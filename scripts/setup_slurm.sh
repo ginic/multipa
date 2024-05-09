@@ -12,7 +12,7 @@
 module load miniconda/22.11.1-1
 module load cuda/11.3.1
 
-conda create -n multipa python=3.10 -y
+conda create -n multipa python=3.9 -y
 conda activate multipa
 
 conda install pytorch==1.11.0 torchvision==0.12.0 torchaudio==0.11.0 cudatoolkit=11.3 -c pytorch -y
