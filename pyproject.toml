@@ -10,7 +10,7 @@ description = "MultIPA is yet another automatic speech transcription model into 
 readme = "README.md"
 
 # What version of python does your library work with?
-requires-python = "<=3.10"
+requires-python = ">=3.9,<3.10"
 
 # Metadata about your package in case you upload it to PYPI
 classifiers = [
@@ -44,7 +44,9 @@ dependencies = [
 
 [project.optional-dependencies]
 # Extra dependencies only needed for running tests go here
-test = ["pytest"]
+test = [
+    "pytest",
+    ]
 
 # Dependencies that are useful only to developers, like an autoformatter and support for visualizations in jupyter notebooks go here
 dev = [
@@ -53,7 +55,7 @@ dev = [
 
 # Useful dependencies for GPU usage monitoring
 gpu = [
-    "pynvml"
+    "pynvml",
 ]
 
 # If your project contains scripts you'd like to be available command line, you can define them here.
