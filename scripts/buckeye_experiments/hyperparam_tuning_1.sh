@@ -8,8 +8,8 @@
 #SBATCH -o train_hyperparam_tuning_1.out
 #SBATCH --mail-type END
 
-batch_size=4
-grad_acc=8
+batch_size=2
+grad_acc=16
 learning_rate=3e-4
 model_dir=data/models/hyperparam_tuning_1
 
