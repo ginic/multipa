@@ -482,18 +482,21 @@ def main_cli():
         hidden_dropout=0.1,
         feat_proj_dropout=0.0,
         # TODO Look into masking in this model. How does it work, what's the trade-off in tweaking the probability and length
+        # TODO This needs to be updated to a later transformers version, see https://github.com/huggingface/transformers/issues/15366
         mask_time_prob=0.05,
-        mask_time_length=1, # updated to avoid ValueError: `mask_length` has to be smaller than `sequence_length`, but got `mask_length`: 10 and `sequence_length`: 9`
+        mask_time_length=4, # updated to avoid ValueError: `mask_length` has to be smaller than `sequence_length`, but got `mask_length`: 10 and `sequence_length`: 9`
         layerdrop=0.1,
         ctc_loss_reduction="mean",
         pad_token_id=processor_ipa.tokenizer.pad_token_id,
         vocab_size=len(processor_ipa.tokenizer)
         )
+    # This should fix issues with validation loss going to inf, https://discuss.huggingface.co/t/wav2vec2-how-to-correct-for-nan-in-training-and-validation-loss/6089/2
+    model.config.ctc_zero_infinity = True
     print("Model defined")
 
     # Freeze the feature extractor so that it won't be changed by the fine-tuning
-    print("Freezing the feature extractor...") 
-    model.freeze_feature_encoder()
+    print("Freezing the feature extractor...")
+    model.freeze_feature_encoder() 
     print("Feature extractor frozen")
 
     model_dir = output_dir / f"wav2vec2-large-xlsr-{args.corpus}-ipa{args.suffix}"
