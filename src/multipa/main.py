@@ -312,6 +312,8 @@ def main_cli():
         if args.speaker_restriction:
             train_data = train_data.filter(lambda x: x["speaker_id"] in args.speaker_restriction)
         
+        print("Sampling from Buckeye train dataset with length after filtering:", len(train_data))
+        
         # Select equal numbers of examples matching the gender split
         num_female_examples = int(args.train_samples * args.percent_female)
         female_examples = train_data.filter(lambda x: x["speaker_gender"]=="f")
