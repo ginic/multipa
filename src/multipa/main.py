@@ -194,7 +194,8 @@ def main_cli():
     parser.add_argument("--num_proc", type=int, default=8,
                         help="Specify the number of CPUs for preprocessing. Default set to 8.")
 
-    parser.add_argument("-ml", "--max-length", type=int, default=12, help="Maximum audio length of training & validation samples in seconds. Defaults to 12.")
+    parser.add_argument("-ml", "--max-length", type=float, default=12, help="Maximum audio length of training & validation samples in seconds. Defaults to 12.")
+    
     parser.add_argument("-ns", "--no_space", action='store_true',
                         help="Use this flag remove spaces in IPA transcription.") 
     parser.add_argument("-o", "--output_dir", type=str, 
@@ -263,6 +264,7 @@ def main_cli():
                                    help="The percentage (as float) of training examples that should come from female speakers. Defaults to 0.5")
     buckeye_subparser.add_argument("-sr", "--speaker_restriction", nargs="*", type=str, 
                                    help="A list of speakers ids to restrict the training data to.")
+    buckeye_subparser.add_argument("--min-length", type=float, default=0.1, help="Minimum sample length for training samples data in seconds. Only used for buckeye. Defaults to 0.1.")
     
         
     args = parser.parse_args()
@@ -301,9 +303,10 @@ def main_cli():
         dataset_name = "buckeye"
         train_data = load_buckeye_split(args.data_dir, "train")
 
-        # For Buckeye, it's important to remove examples that are too long first 
+        # For Buckeye, it's important to remove examples that are too long/short first 
         # to maintain the specified gender split and restrictions to certain speakers
         train_data = train_data.filter(lambda x: x["duration"] < args.max_length)
+        train_data = train_data.filter(lambda x: x["duration"] >= args.min_length)
 
         # Handle restrictions to particular individuals
         if args.speaker_restriction:
@@ -484,7 +487,7 @@ def main_cli():
         # TODO Look into masking in this model. How does it work, what's the trade-off in tweaking the probability and length
         # TODO This needs to be updated to a later transformers version, see https://github.com/huggingface/transformers/issues/15366
         mask_time_prob=0.05,
-        mask_time_length=4, # updated to avoid ValueError: `mask_length` has to be smaller than `sequence_length`, but got `mask_length`: 10 and `sequence_length`: 9`
+        mask_time_length=10, # updated to avoid ValueError: `mask_length` has to be smaller than `sequence_length`, but got `mask_length`: 10 and `sequence_length`: 9`
         layerdrop=0.1,
         ctc_loss_reduction="mean",
         pad_token_id=processor_ipa.tokenizer.pad_token_id,
