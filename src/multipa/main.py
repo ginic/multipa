@@ -179,9 +179,10 @@ def compute_metrics(pred, processor):
 
 
 def main_cli():
-    # Arguments
     parser = argparse.ArgumentParser(description="Trains the speech recognition model. Specify corpus, "\
                                      "model training parameters and language details if needed. ")
+    
+    # Model parameters
     parser.add_argument("-e", "--num_train_epochs", type=int, default=10,
                         help="Specify the number of train epochs. By default it's set to 10.")
     parser.add_argument("-lr", "--learning_rate", type=float, default= 3e-4, 
@@ -190,30 +191,29 @@ def main_cli():
                         help="The batch size per GPU/CPU for training, defaults to 2.")
     parser.add_argument("-ga", "--gradient_accumulation_steps", type=int, default=4, 
                         help="The number of gradient accumulation steps during training, defaults to 4")
-    
-    parser.add_argument("--num_proc", type=int, default=8,
-                        help="Specify the number of CPUs for preprocessing. Default set to 8.")
-
     parser.add_argument("-ml", "--max-length", type=float, default=12, help="Maximum audio length of training & validation samples in seconds. Defaults to 12.")
-    
+    parser.add_argument("-mt", "--mask_time_length", type=int, default=10, 
+                        help="Mask time length for the model. If you know your training data contains audio less than 0.2 seconds, make the mask time length small. Defaults to 10.")
+    parser.add_argument("-g", "--use_gpu", action="store_true", help="Use this flag if a GPU is available for training.")
+
+    # Data processing parameters used for all corpora
+    parser.add_argument("--num_proc", type=int, default=8,
+                        help="Specify the number of CPUs for preprocessing. Default set to 8.")    
     parser.add_argument("-ns", "--no_space", action='store_true',
                         help="Use this flag remove spaces in IPA transcription.") 
     parser.add_argument("-o", "--output_dir", type=str, 
                         help="Specify the directory to save files for vocab, stats and trained models.")
     parser.add_argument("-s", "--suffix", type=str, default="",
                         help="Optional suffix to use when naming vocab and model folders")
-    parser.add_argument("-g", "--use_gpu", action="store_true", help="Use this flag if a GPU is available for training.")
     parser.add_argument("-ts", "--train_seed", type=int, default=7, 
                         help="Random seed for selecting a subset of training data. Defaults to 7.")
     parser.add_argument("-vs", "--val_seed", type=int, default=99, 
                         help="Random seed for selecting a subset of validation data. Defaults to 99.")
-    
     # This is a bit confusing, but it's basically reading the train/test splits from the preprocessing output. 
     parser.add_argument("-dd", "--data_dir", type=str, default="data_new",
                         help="Specify the directory path for the training/validation data files." \
                         "Default is set to `data_new`, which stores the data from the as-of-now newest" \
                         "`mozilla-foundation/common_voice_11_0`.")
-    
 
     # TODO Unclear if needed for buckeye
     parser.add_argument("--cache_dir", type=str, default="~/.cache/huggingface/datasets",
@@ -225,22 +225,18 @@ def main_cli():
     subparsers = parser.add_subparsers(help="Specify which corpus you'll be using", dest="corpus")
 
     comm_voice_subparser = subparsers.add_parser(COMMONVOICE_KEY, help="Use the Common Voice corpus version 11 from the Huggingface data repo.")
-
     comm_voice_subparser.add_argument("-l", "--languages", nargs="+", type=str, required=True,
                         help="Specify language code (split by space). Typically ISO639-1, or ISO639-2 if not found in ISO639-1.")
-    
     comm_voice_subparser.add_argument("-tr", "--train_samples", nargs="+", type=int,
                         help="Specify the number of samples to be used as the training data for each language. " \
                         "For example, if you want to use 1000, 2000, 3000 training samples for Japanese, Polish, " \
                         "and Maltese, then specify as -l ja pl mt -tr 1000 2000 3000." \
                         "You can type an irrationally large number to pick up the maximum value.")
-    
     comm_voice_subparser.add_argument("-ve", "--val_samples", nargs="+", type=int,
                         help="Specify the number of samples to be used as the test data for each language. " \
                         "For example, if you want to use 1000, 2000, 3000 test samples for Japanese, Polish, " \
                         "and Maltese, then specify as -l ja pl mt -tr 1000 2000 3000. " \
                         "You can type an irrationally large number to pick up the maximum value.")
-
     comm_voice_subparser.add_argument("-qf", "--quality_filter", type=bool, default=True,
                         help="Specify if you want to remove low quality audio (at least having 1 down vote) from the dataset." \
                         "True if you want to, False if you do not want to.")
@@ -489,7 +485,7 @@ def main_cli():
         # TODO Look into masking in this model. How does it work, what's the trade-off in tweaking the probability and length
         # TODO This needs to be updated to a later transformers version, see https://github.com/huggingface/transformers/issues/15366
         mask_time_prob=0.05,
-        mask_time_length=8, # updated to avoid ValueError: `mask_length` has to be smaller than `sequence_length`, but got `mask_length`: 10 and `sequence_length`: 9`
+        mask_time_length=args.mask_time_length, # If this is too big, you'll get `ValueError: `mask_length` has to be smaller than `sequence_length`...`, so if you have very short audio in training data, reduce the value
         layerdrop=0.1,
         ctc_loss_reduction="mean",
         pad_token_id=processor_ipa.tokenizer.pad_token_id,
@@ -533,6 +529,7 @@ def main_cli():
         #optim="adafactor", #Can use if memory is a problem, but convergence might be slower
         num_train_epochs=args.num_train_epochs,
         fp16=args.use_gpu, # see https://huggingface.co/docs/transformers/v4.18.0/en/performance#fp16-training
+        # Defaults are fine for logging and evaluation, but if you'd like to save time, you can 
         evaluation_strategy="epoch",
         save_strategy="epoch",
         #save_steps=500,
