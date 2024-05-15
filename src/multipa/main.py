@@ -525,7 +525,7 @@ def main_cli():
         # Effective batch size = per_device_train_batch_size * gradient_accumulation_steps
         per_device_train_batch_size=args.per_device_train_batch_size,
         gradient_accumulation_steps=args.gradient_accumulation_steps,
-        #gradient_checkpointing=True, # Can use this if memory is a problem, but training will be slower
+        gradient_checkpointing=True, # Can use this if memory is a problem, but training will be slower
         #optim="adafactor", #Can use if memory is a problem, but convergence might be slower
         num_train_epochs=args.num_train_epochs,
         fp16=args.use_gpu, # see https://huggingface.co/docs/transformers/v4.18.0/en/performance#fp16-training
