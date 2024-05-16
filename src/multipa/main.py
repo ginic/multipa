@@ -528,7 +528,7 @@ def main_cli():
         gradient_checkpointing=True, # Can use this if memory is a problem, but training will be slower
         #optim="adafactor", #Can use if memory is a problem, but convergence might be slower
         num_train_epochs=args.num_train_epochs,
-        fp16=args.use_gpu, # see https://huggingface.co/docs/transformers/v4.18.0/en/performance#fp16-training
+        fp16=False, # False to keep memory usage down 
         # Defaults are fine for logging and evaluation, but if you'd like to save time, you can 
         evaluation_strategy="epoch",
         save_strategy="epoch",

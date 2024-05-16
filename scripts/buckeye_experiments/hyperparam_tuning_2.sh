@@ -3,12 +3,13 @@
 #SBATCH -c 12
 #SBATCH --mem=12GB
 #SBATCH -p gpu-preempt
-#SBATCH -G 4 
+#SBATCH --constraint=[a100|m40|rtx8000]
+#SBATCH -G 2 
 #SBATCH --time 24:00:00
 #SBATCH -o train_hyperparam_tuning_2.out
 #SBATCH --mail-type END
 
-batch_size=2
+batch_size=4
 grad_acc=8
 learning_rate=3e-5
 model_dir=data/models/hyperparam_tuning_2
