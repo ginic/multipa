@@ -4,6 +4,7 @@ Detailed results on the test data may also be written if desired.
 Currently only Buckeye data is supported for evaluation.
 """
 import argparse
+from collections import defaultdict
 from pathlib import Path
 
 import datasets
@@ -14,15 +15,59 @@ import transformers
 import panphon.distance
 
 from multipa.data_utils import load_buckeye_split, clean_text, EMPTY_TRANSCRIPTION
- 
 
-def main(input_data:datasets.Dataset, eval_csv, local_models:list[Path]|None=None, hf_models:list[str]|None=None, 
-         verbose_results_dir:Path|None=None, is_remove_space:bool=False):
-    if local_models is None:
-        local_models = []
-    if hf_models is None:
-        hf_models = []
+PHONE_ERRORS_EVALUATOR = evaluate.load("ginic/phone_errors") 
 
+class ModelEvaluator:
+    model_key = "model"
+    # Metric names that will become column headers
+    per_key = "mean_phone_error_rate"
+    pfer_key = "mean_phone_feature_error_rate"
+    fer_key = "mean_feature_error_rate"
+    phone_hallucinations_key = "total_phone_hallucinations"
+
+    def __init__(self):
+        self.distance_computer = panphon.distance.Distance()
+        # Final results will have these keys
+        # {model name -> {metric_key: metric_value}}
+        self.results_to_write = defaultdict(dict)
+
+    def eval_non_empty_transcriptions(model_name, predictions, references):
+        """Compare the predictions and gold-standard references for a model, 
+        then add results to model results tracker.
+        """
+        metrics = PHONE_ERRORS_EVALUATOR.compute(predictions=predictions, references=references)
+        for k in [ModelEvaluationTrakcer.per_key, ModelEvaluationTrakcer.pfer_key, ModelEvaluationTrakcer.fer_key]:
+            self.results_to_write[model_name][k] = metrics[k]
+
+    def eval_empty_transcriptions(model_name, predictions):
+        """Count number of phone hallucinations for this model and save to write later
+        """
+        phone_lengths = [len(self.distance_computer.fm.ipa_segs(p)) for p in empty_test_data_predictions]
+        total_phone_hallucinations = sum(phone_lengths)
+        self.results_to_write[model_name][ModelEvaluationTrakcer.phone_hallucinations_key] = total_phone_hallucinations
+
+    def to_csv(csv_path):
+        """Write the evaluation results stored in this object to the specified CSV file
+        """
+        df = pd.DataFrame.from_dict(self.results_to_write, orient="index")
+        df.index.name = ModelEvaluationTrakcer.model_key
+        df.to_csv(csv_path)
+        
+    
+def preprocess_test_data(test_dataset:datasets.Dataset, is_remove_space:bool=False):
+    """
+    Filters the test dataset into examples with non-empty and empty transcriptions, 
+    since they should be evaluated separately.
+    Also performs additional text cleaning if specified. 
+
+    Args: 
+        test_dataset: Huggingface dataset you'll use for evaluation
+        is_remove_space: Filter out spaces in IPA strings if true
+
+    Returns: 
+        non_empty_transcriptions_dataset, empty_transcriptions_dataset: a tuple of Huggingface datasets
+    """
     # Set sampling rate to 16K
     test_dataset = input_data.cast_column("audio", datasets.Audio(sampling_rate=16_000)).\
         map(lambda x: clean_text(x, is_remove_space=is_remove_space))
@@ -31,32 +76,34 @@ def main(input_data:datasets.Dataset, eval_csv, local_models:list[Path]|None=Non
     print("Number of test examples with empty transcriptions:", len(empty_test_data))
     print(empty_test_data)
     non_empty_test_data = test_dataset.filter(lambda x: x["ipa"] != EMPTY_TRANSCRIPTION)
-    phone_errors = evaluate.load("ginic/phone_errors") 
 
-    # Final results will have these keys
-    model_key = "model"
-    per_key = "mean_phone_error_rate"
-    pfer_key = "mean_phone_feature_error_rate"
-    fer_key = "mean_feature_error_rate"
-    phone_hallucinations_key = "total_phone_hallucinations"
-    results_to_write = {model_key:[], per_key:[], pfer_key:[], fer_key:[], phone_hallucinations_key:[]}
+    return non_empty_test_data, empty_test_data
+
+
+def main(input_data:datasets.Dataset, eval_csv, local_models:list[Path]|None=None, hf_models:list[str]|None=None, 
+         verbose_results_dir:Path|None=None, is_remove_space:bool=False):
+    if local_models is None:
+        local_models = []
+    if hf_models is None:
+        hf_models = []
+
+    non_empty_test_data, empty_test_data = preprocess_test_data(input_data, is_remove_space)
+    print("Number of test examples with NON-empty transcriptions:", len(non_empty_test_data))
+    print(non_empty_test_data)
+
+    print("Number of test examples with empty transcriptions:", len(empty_test_data))
+    print(empty_test_data)
+
+    model_eval_tracker = ModelEvaluationTrakcer()
     
     for model in local_models + hf_models: 
         print("Evaluating model:", model)
         pipe = transformers.pipeline("automatic-speech-recognition", model=model)
         predictions = [d["text"] for d in pipe(non_empty_test_data["audio"])]
-        metrics = phone_errors.compute(predictions=predictions, references=non_empty_test_data["ipa"])
-        
+        model_eval_tracker.eval_non_empty_transcriptions(model, predictions, non_empty_test_data["ipa"])
+             
         empty_test_data_predictions = [d["text"] for d in pipe(empty_test_data["audio"])]
-        distance_computer = panphon.distance.Distance()
-        phone_lengths = [len(distance_computer.fm.ipa_segs(p)) for p in empty_test_data_predictions]
-        total_phone_hallucinations = sum(phone_lengths)
-
-        # Collect results for this model
-        results_to_write[model_key].append(model)
-        results_to_write[phone_hallucinations_key].append(total_phone_hallucinations)
-        for k in [per_key, pfer_key, fer_key]:
-            results_to_write[k].append(metrics[k])
+        model_eval_tracker.eval_empty_transcriptions(model, empty_test_data_predictions)
         
         # Write detailed by example evaluation if desired
         if verbose_results_dir:
@@ -77,8 +124,8 @@ def main(input_data:datasets.Dataset, eval_csv, local_models:list[Path]|None=Non
                 detailed_results = detailed_results.add_column(k, metrics[k])
             detailed_results.to_csv(detailed_results_csv, index=False)            
 
-    # Write final metrics results
-    pd.DataFrame(results_to_write).to_csv(eval_csv, index=False)
+    # Write final metrics results for all models
+    model_eval_tracker.to_csv(eval_csv)
 
 
 def main_cli():
