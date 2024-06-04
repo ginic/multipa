@@ -51,6 +51,7 @@ test = [
 # Dependencies that are useful only to developers, like an autoformatter and support for visualizations in jupyter notebooks go here
 dev = [
     "black",
+    "matplotlib", 
 ]
 
 # Useful dependencies for GPU usage monitoring
