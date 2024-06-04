@@ -157,3 +157,5 @@ cython_debug/
 data/*
 dataset_cache/*
 
+# Slurm output logs
+*.out

@@ -1,18 +1,18 @@
 #!/bin/bash
 
-#SBATCH -c 12
+#SBATCH -c 8
 #SBATCH --mem=16GB
 #SBATCH -p gpu-preempt
 #SBATCH -G 8
 #SBATCH --constraint=[a100|m40|rtx8000]
-#SBATCH --time 24:00:00
-#SBATCH -o train_hyperparam_tuning_4.out
+#SBATCH --time 06:00:00
+#SBATCH -o train_hyperparam_tuning_5.out
 #SBATCH --mail-type END
 
 batch_size=4
 grad_acc=1
-learning_rate=3e-4
-model_dir=data/models/hyperparam_tuning_4
+learning_rate=9e-4
+model_dir=data/models/hyperparam_tuning_5
 
 dataset_cache=dataset_cache
 data_dir=data/buckeye
