@@ -6,6 +6,7 @@ Currently only Buckeye data is supported for evaluation.
 import argparse
 from collections import defaultdict
 from pathlib import Path
+from typing import Union, Optional
 
 import datasets
 import evaluate
@@ -32,26 +33,26 @@ class ModelEvaluator:
         # {model name -> {metric_key: metric_value}}
         self.results_to_write = defaultdict(dict)
 
-    def eval_non_empty_transcriptions(model_name, predictions, references):
+    def eval_non_empty_transcriptions(self, model_name, predictions, references):
         """Compare the predictions and gold-standard references for a model, 
         then add results to model results tracker.
         """
         metrics = PHONE_ERRORS_EVALUATOR.compute(predictions=predictions, references=references)
-        for k in [ModelEvaluationTrakcer.per_key, ModelEvaluationTrakcer.pfer_key, ModelEvaluationTrakcer.fer_key]:
+        for k in [ModelEvaluator.per_key, ModelEvaluator.pfer_key, ModelEvaluator.fer_key]:
             self.results_to_write[model_name][k] = metrics[k]
 
-    def eval_empty_transcriptions(model_name, predictions):
+    def eval_empty_transcriptions(self, model_name, predictions):
         """Count number of phone hallucinations for this model and save to write later
         """
-        phone_lengths = [len(self.distance_computer.fm.ipa_segs(p)) for p in empty_test_data_predictions]
+        phone_lengths = [len(self.distance_computer.fm.ipa_segs(p)) for p in predictions]
         total_phone_hallucinations = sum(phone_lengths)
-        self.results_to_write[model_name][ModelEvaluationTrakcer.phone_hallucinations_key] = total_phone_hallucinations
+        self.results_to_write[model_name][ModelEvaluator.phone_hallucinations_key] = total_phone_hallucinations
 
-    def to_csv(csv_path):
+    def to_csv(self, csv_path):
         """Write the evaluation results stored in this object to the specified CSV file
         """
         df = pd.DataFrame.from_dict(self.results_to_write, orient="index")
-        df.index.name = ModelEvaluationTrakcer.model_key
+        df.index.name = ModelEvaluator.model_key
         df.to_csv(csv_path)
         
     
@@ -80,8 +81,8 @@ def preprocess_test_data(test_dataset:datasets.Dataset, is_remove_space:bool=Fal
     return non_empty_test_data, empty_test_data
 
 
-def main(input_data:datasets.Dataset, eval_csv, local_models:list[Path]|None=None, hf_models:list[str]|None=None, 
-         verbose_results_dir:Path|None=None, is_remove_space:bool=False):
+def main(input_data:datasets.Dataset, eval_csv, local_models:Optional[list[Path]]=None, hf_models:Optional[list[str]]=None, 
+         verbose_results_dir:Optional[Path]=None, is_remove_space:bool=False):
     if local_models is None:
         local_models = []
     if hf_models is None:
