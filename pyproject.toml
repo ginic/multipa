@@ -54,6 +54,7 @@ dev = [
     "black",
     "epitran",
     "matplotlib", 
+    "tqdm"
 ]
 
 # Useful dependencies for GPU usage monitoring

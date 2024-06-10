@@ -36,17 +36,20 @@ class ModelEvaluator:
     def eval_non_empty_transcriptions(self, model_name, predictions, references):
         """Compare the predictions and gold-standard references for a model, 
         then add results to model results tracker.
+        Returns the full detailed evaluation results as a dictionary.
         """
         metrics = PHONE_ERRORS_EVALUATOR.compute(predictions=predictions, references=references)
         for k in [ModelEvaluator.per_key, ModelEvaluator.pfer_key, ModelEvaluator.fer_key]:
             self.results_to_write[model_name][k] = metrics[k]
 
     def eval_empty_transcriptions(self, model_name, predictions):
-        """Count number of phone hallucinations for this model and save to write later
+        """Count number of phone hallucinations for this model and save to write later. 
+        Returns the detailed evaluation results as a list with one entry per prediction.
         """
         phone_lengths = [len(self.distance_computer.fm.ipa_segs(p)) for p in predictions]
         total_phone_hallucinations = sum(phone_lengths)
         self.results_to_write[model_name][ModelEvaluator.phone_hallucinations_key] = total_phone_hallucinations
+        return phone_lengths
 
     def to_csv(self, csv_path):
         """Write the evaluation results stored in this object to the specified CSV file
@@ -70,13 +73,13 @@ def preprocess_test_data(test_dataset:datasets.Dataset, is_remove_space:bool=Fal
         non_empty_transcriptions_dataset, empty_transcriptions_dataset: a tuple of Huggingface datasets
     """
     # Set sampling rate to 16K
-    test_dataset = input_data.cast_column("audio", datasets.Audio(sampling_rate=16_000)).\
+    input_data = test_dataset.cast_column("audio", datasets.Audio(sampling_rate=16_000)).\
         map(lambda x: clean_text(x, is_remove_space=is_remove_space))
     
-    empty_test_data = test_dataset.filter(lambda x: x["ipa"] == EMPTY_TRANSCRIPTION)
+    empty_test_data = input_data.filter(lambda x: x["ipa"] == EMPTY_TRANSCRIPTION)
     print("Number of test examples with empty transcriptions:", len(empty_test_data))
     print(empty_test_data)
-    non_empty_test_data = test_dataset.filter(lambda x: x["ipa"] != EMPTY_TRANSCRIPTION)
+    non_empty_test_data = input_data.filter(lambda x: x["ipa"] != EMPTY_TRANSCRIPTION)
 
     return non_empty_test_data, empty_test_data
 
@@ -95,16 +98,16 @@ def main(input_data:datasets.Dataset, eval_csv, local_models:Optional[list[Path]
     print("Number of test examples with empty transcriptions:", len(empty_test_data))
     print(empty_test_data)
 
-    model_eval_tracker = ModelEvaluationTrakcer()
+    model_eval_tracker = ModelEvaluator()
     
     for model in local_models + hf_models: 
         print("Evaluating model:", model)
         pipe = transformers.pipeline("automatic-speech-recognition", model=model)
         predictions = [d["text"] for d in pipe(non_empty_test_data["audio"])]
-        model_eval_tracker.eval_non_empty_transcriptions(model, predictions, non_empty_test_data["ipa"])
+        metrics = model_eval_tracker.eval_non_empty_transcriptions(model, predictions, non_empty_test_data["ipa"])
              
         empty_test_data_predictions = [d["text"] for d in pipe(empty_test_data["audio"])]
-        model_eval_tracker.eval_empty_transcriptions(model, empty_test_data_predictions)
+        phone_lengths = model_eval_tracker.eval_empty_transcriptions(model, empty_test_data_predictions)
         
         # Write detailed by example evaluation if desired
         if verbose_results_dir:
