@@ -7,15 +7,23 @@ def test_model_evaluator(tmp_path):
     ground_truth = ["po"]
     prediction = ["bo"]
 
-    model_eval.eval_non_empty_transcriptions("test_model", prediction, ground_truth)
+    metrics = model_eval.eval_non_empty_transcriptions("test_model", prediction, ground_truth)
     non_empty_expected = {"test_model": {
         "mean_phone_error_rate": 0.5,
         "mean_phone_feature_error_rate": 0.041666666666666664,
         "mean_feature_error_rate": 0.020833333333333332
     }}
+    expected_metrics_keys = set(["mean_phone_error_rate", 
+                                 "mean_phone_feature_error_rate", 
+                                 "mean_feature_error_rate", 
+                                 "phone_error_rates", 
+                                 "phone_feature_error_rates", 
+                                 "feature_error_rates"])
+    assert metrics.keys() == expected_metrics_keys
     assert model_eval.results_to_write == non_empty_expected
 
-    model_eval.eval_empty_transcriptions("test_model", prediction)
+    hallucinations = model_eval.eval_empty_transcriptions("test_model", prediction)
+    assert hallucinations == [2]
     all_expected = {"test_model": {
         "mean_phone_error_rate": 0.5,
         "mean_phone_feature_error_rate": 0.041666666666666664,

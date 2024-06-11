@@ -43,6 +43,7 @@ class ModelEvaluator:
         metrics = PHONE_ERRORS_EVALUATOR.compute(predictions=predictions, references=references)
         for k in [ModelEvaluator.per_key, ModelEvaluator.pfer_key, ModelEvaluator.fer_key]:
             self.results_to_write[model_name][k] = metrics[k]
+        return metrics
 
     def eval_empty_transcriptions(self, model_name, predictions):
         """Count number of phone hallucinations for this model and save to write later. 
