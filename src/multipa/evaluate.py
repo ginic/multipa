@@ -6,7 +6,7 @@ Currently only Buckeye data is supported for evaluation.
 import argparse
 from collections import defaultdict
 from pathlib import Path
-from typing import Union, Optional
+from typing import Optional
 
 import datasets
 import evaluate
@@ -18,6 +18,8 @@ import panphon.distance
 from multipa.data_utils import load_buckeye_split, clean_text, EMPTY_TRANSCRIPTION
 
 PHONE_ERRORS_EVALUATOR = evaluate.load("ginic/phone_errors") 
+DETAILED_PREDICTIONS_CSV_SUFFIX = "detailed_predictions.csv"
+HALLUCINATIONS_SUFFIX = "hallucinations.csv"
 
 class ModelEvaluator:
     model_key = "model"
@@ -114,8 +116,8 @@ def main(input_data:datasets.Dataset, eval_csv, local_models:Optional[list[Path]
             verbose_results_dir.mkdir(parents=True, exist_ok=True)
             # Take file separators out of model name
             clean_model_name = str(model).replace("/", "_").replace("\\", "_")
-            hallucinations_csv =  verbose_results_dir / (clean_model_name + "_hallucinations.csv")
-            detailed_results_csv = verbose_results_dir / (clean_model_name + "_detailed_predictions.csv")
+            hallucinations_csv =  verbose_results_dir / (f"{clean_model_name}_{HALLUCINATIONS_SUFFIX}")
+            detailed_results_csv = verbose_results_dir / (f"{clean_model_name}_{DETAILED_PREDICTIONS_CSV_SUFFIX}")
 
             empty_test_to_write = empty_test_data.add_column("prediction", empty_test_data_predictions).\
                 add_column("num_hallucinated_phones", phone_lengths).\
