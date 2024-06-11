@@ -129,7 +129,7 @@ def main(input_data:datasets.Dataset, eval_csv, local_models:Optional[list[Path]
                 remove_columns(["audio"])
             for k in ["phone_error_rates", "phone_feature_error_rates", "feature_error_rates"]:
                 detailed_results = detailed_results.add_column(k, metrics[k])
-            detailed_results.to_csv(detailed_results_csv, index=False)            
+            detailed_results.remove_columns(["__index_level_0__"]).to_csv(detailed_results_csv, index=False)            
 
     # Write final metrics results for all models
     model_eval_tracker.to_csv(eval_csv)
