@@ -11,4 +11,9 @@ Vary model parameters like learning rates and batch size (using the same trainin
 Note: effective batch size = batch per device x gradient accumulation steps x num GPUs
 
 ## `data_seed` 
-Vary the random seed to select training data while keeping an even 50/50 gender split to measure statistical significance of training data selection
+Vary the random seed to select training data while keeping an even 50/50 gender split to measure statistical significance of changing training data selection.
+
+## `gender_split`
+
+
+## `vary_individuals`

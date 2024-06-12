@@ -155,6 +155,7 @@ cython_debug/
 
 # Default data output directories
 data/*
+!data/evaluation_results
 dataset_cache/*
 
 # Slurm output logs
