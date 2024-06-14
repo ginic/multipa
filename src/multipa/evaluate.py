@@ -6,7 +6,7 @@ Currently only Buckeye data is supported for evaluation.
 import argparse
 from collections import defaultdict
 from pathlib import Path
-from typing import Optional
+from typing import Optional, Union
 
 import datasets
 import evaluate
@@ -87,7 +87,7 @@ def preprocess_test_data(test_dataset:datasets.Dataset, is_remove_space:bool=Fal
     return non_empty_test_data, empty_test_data
 
 
-def main(input_data:datasets.Dataset, eval_csv, local_models:Optional[list[Path]]=None, hf_models:Optional[list[str]]=None, 
+def main(input_data:datasets.Dataset, eval_csv:Union[Path, str] , local_models:Optional[list[Path]]=None, hf_models:Optional[list[str]]=None, 
          verbose_results_dir:Optional[Path]=None, is_remove_space:bool=False):
     if local_models is None:
         local_models = []
