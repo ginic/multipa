@@ -1,10 +1,10 @@
 #!/bin/bash
 
 #SBATCH -c 8
-#SBATCH --mem=16GB
+#SBATCH --mem=8GB
 #SBATCH -p gpu-preempt
 #SBATCH -G 1
-#SBATCH --time 12:00:00
+#SBATCH --time 09:00:00
 #SBATCH -o gender_split_30_female_eval.out
 #SBATCH --mail-type END
 

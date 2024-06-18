@@ -1,7 +1,7 @@
 #!/bin/bash
 
 #SBATCH -c 8
-#SBATCH --mem=16GB
+#SBATCH --mem=8GB
 #SBATCH -p gpu-preempt
 #SBATCH -G 1
 #SBATCH --time 09:00:00
