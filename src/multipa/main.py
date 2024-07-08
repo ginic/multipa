@@ -401,8 +401,8 @@ def main_cli():
 
     # Shuffle the dataset
     print("Shuffling the dataset...")
-    full_train_data = full_train_data.shuffle(seed=42)
-    full_valid_data = full_valid_data.shuffle(seed=35)
+    full_train_data = full_train_data.shuffle(seed=42).flatten_indices()
+    full_valid_data = full_valid_data.shuffle(seed=35).flatten_indices()
     print("Shuffling done")
 
     # Preprocessing 
