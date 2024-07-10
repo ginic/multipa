@@ -399,11 +399,7 @@ def main_cli():
     full_train_data = full_train_data.map(lambda x: clean_text(x, is_remove_space = args.no_space))
     full_valid_data = full_valid_data.map(lambda x: clean_text(x, is_remove_space = args.no_space))
 
-    # Shuffle the dataset
-    print("Shuffling the dataset...")
-    full_train_data = full_train_data.shuffle(seed=42).flatten_indices()
-    full_valid_data = full_valid_data.shuffle(seed=35).flatten_indices()
-    print("Shuffling done")
+
 
     # Preprocessing 
     print("Creating vocabulary...")
@@ -466,6 +462,14 @@ def main_cli():
     print(f"Removing audio files longer than {args.max_length} secs...")
     full_train_data = remove_long_data(full_train_data, args.max_length)
     full_valid_data = remove_long_data(full_valid_data, args.max_length)
+
+    # Shuffle the dataset
+    print("Shuffling the dataset...")
+    full_train_data = full_train_data.shuffle(seed=42).flatten_indices(keep_in_memory=True)
+    full_valid_data = full_valid_data.shuffle(seed=35).flatten_indices(keep_in_memory=True)
+    print("Shuffling done")
+
+
     print("Dataset lengths to be trained and tested:")
     print("Train:", len(full_train_data))
     print("Valid:", len(full_valid_data))
