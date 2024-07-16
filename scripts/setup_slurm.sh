@@ -10,12 +10,12 @@
 #SBATCH --mail-type END
 
 module load miniconda/22.11.1-1
-module load cuda/11.3.1
+module load cuda/11.8.0
 
 conda create -n multipa python=3.9 -y
 conda activate multipa
 
-conda install pytorch==1.11.0 torchvision==0.12.0 torchaudio==0.11.0 cudatoolkit=11.3 -c pytorch -y
+conda install pytorch==2.3.0 torchvision==0.18.0 torchaudio==2.3.0 cudatoolkit=11.8 -c pytorch -y
 
 pip install --upgrade pip
 
