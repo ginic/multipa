@@ -19,7 +19,7 @@ data_dir=data/buckeye
 
 
 module load miniconda/22.11.1-1
-module load cuda/11.3.1
+module load cuda/11.8.0
 
 conda activate multipa
 

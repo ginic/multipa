@@ -1,7 +1,7 @@
 #!/bin/bash
 
 #SBATCH -c 12
-#SBATCH --mem=16GB
+#SBATCH --mem=24GB
 #SBATCH -p gpu-preempt
 #SBATCH -G 4
 #SBATCH --constraint=[a100|m40|rtx8000]
@@ -19,7 +19,7 @@ data_dir=data/buckeye
 
 
 module load miniconda/22.11.1-1
-module load cuda/11.3.1
+module load cuda/11.8.0
 
 conda activate multipa
 

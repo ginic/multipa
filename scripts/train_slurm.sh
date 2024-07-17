@@ -16,7 +16,7 @@ vocab_file=data/vocab.en.json
 model_dir=data/test_model
 
 module load miniconda/22.11.1-1
-module load cuda/11.3.1
+module load cuda/11.8.0
 
 conda activate multipa
 
