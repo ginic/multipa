@@ -20,7 +20,7 @@ Params to vary:
 - Effective batch size: [64, 32] (achieve these by varying batch size per device, number of gpus and grad accumulation steps appropriately)
     - To complete training quickly, you can use 4 or 8 GPUs on Unity, but they have to be large to get enough VRAM. 
     - Note: effective batch size = batch per device x gradient accumulation steps x num GPUs
-- Learning rate [3e-4, 3e-5, 9e4]
+- Learning rate: [3e-4, 3e-5, 9e4]
 
 
 ## `data_seed` 
@@ -40,7 +40,7 @@ Goals:
 - Determine how different in gender split in training data affects performance
 
 Params to vary: 
-- percent female (--percent_female) [0.3, 0.7]
+- percent female (--percent_female): [0.3, 0.7]
 - training seed (--train_seed): [359, 130, 809, 700, 114]
 
 
@@ -79,6 +79,7 @@ Goals:
 - Determine how variety of speakers in the training data affects performance
 
 Params to vary: 
+- training seed (--train_seed)
 - demographic make up of training data by age, using --speaker_restriction 
     - Experiments 1-3: only "young" individuals
     - Experiments 4-6: only "old" individuals
