@@ -15,9 +15,11 @@ module load cuda/11.8.0
 conda create -n multipa python=3.9 -y
 conda activate multipa
 
-conda install pytorch==2.3.0 torchvision==0.18.0 torchaudio==2.3.0 cudatoolkit=11.8 -c pytorch -y
-
 pip install --upgrade pip
+
+pip install torch==2.3.0 torchvision==0.18.0 torchaudio==2.3.0 --index-url https://download.pytorch.org/whl/cu118
+echo "How many GPUS found by pytorch?"
+python -c "import torch; print(torch.cuda.device_count())"
 
 pip install .[gpu,dev,test]
 python -m unidic download
