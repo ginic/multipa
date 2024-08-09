@@ -3,7 +3,8 @@
 #SBATCH -c 12
 #SBATCH --mem=24GB
 #SBATCH -p gpu-preempt
-#SBATCH -G 4
+#SBATCH --ntasks=1
+#SBATCH --gpus-per-task=4
 #SBATCH --constraint=[a100|m40|rtx8000]
 #SBATCH --time 24:00:00
 #SBATCH -o train_vary_individuals_young_only_2.out
@@ -17,14 +18,13 @@ model_dir=data/models/vary_individuals_young_only_2
 dataset_cache=dataset_cache
 data_dir=data/buckeye
 
-
-module load miniconda/22.11.1-1
+module load python/3.11.0
 module load cuda/11.8.0
 
-conda activate multipa
+source venv/bin/activate
 
 python --version
-echo "How many GPUS found by pytorch?"
+echo "How many GPUs found by pytorch?"
 python -c "import torch; print(torch.cuda.device_count())"
 
 multipa-train --output_dir "$model_dir" --data_dir "$data_dir" --no_space --cache_dir "$dataset_cache" --use_gpu --num_train_epochs 10 --num_proc 12 \
