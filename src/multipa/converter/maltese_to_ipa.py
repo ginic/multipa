@@ -113,7 +113,6 @@ class Maltese2IPA:
         sent = sent.replace("R", "r")
         return sent
 
-    @classmethod
     def maltese_generate_ipa(self, sent):
         """
         This function processes the conversion above at once.
