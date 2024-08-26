@@ -176,6 +176,25 @@ def compute_metrics(pred, processor):
 
     return PHONE_ERRORS_COMPUTER.compute(predictions=pred_str, references=label_str)
 
+def check_gpus(int: expected_gpus=0):
+    """Validates that the epxected number of GPUs is available and prints memory usage.
+    Set up for tracking GPU usage if using CUDA, see https://huggingface.co/docs/transformers/v4.18.0/en/performance
+
+    Args:
+        expected_gpus (int): A number (>0) of gpus to check for. If this exact number isn't found, raises a RuntimeError. 
+    """
+    import pynvml
+    pynvml.nvmlInit()
+    num_gpus = torch.cuda.device_count()
+
+    for i in range(num_gpus):
+        handle = pynvml.nvmlDeviceGetHandleByIndex(i)
+        info = pynvml.nvmlDeviceGetMemoryInfo(handle)
+        print(f"GPU {i} handle: {handle}")
+        print(f"GPU {i} memory occupied: {info.used//1024**2} MB.")
+
+    if expected_gpus > 0 and expected_gpus != num_gpus:
+        raise RuntimeError(f"Expected {expected_gpus} gpus, but found only {num_gpus}.")
 
 
 def main_cli():
@@ -198,7 +217,9 @@ def main_cli():
 
     # Data processing parameters used for all corpora
     parser.add_argument("--num_proc", type=int, default=8,
-                        help="Specify the number of CPUs for preprocessing. Default set to 8.")    
+                        help="Specify the number of CPUs for preprocessing. Default set to 8.")
+    parser.add_argument("--num_gpus", type=int, default=0, 
+                        help="If you're using GPUs and would like to check that they are all found correctly, set this to the expected number of GPUs >=1. Otherwise this paramter is ignored.")
     parser.add_argument("-ns", "--no_space", action='store_true',
                         help="Use this flag remove spaces in IPA transcription.") 
     parser.add_argument("-o", "--output_dir", type=str, 
@@ -264,7 +285,11 @@ def main_cli():
     
         
     args = parser.parse_args()
-    
+
+    # Check that the desired number of gpus is available
+    if args.use_gpu:
+        check_gpus(args.num_gpus)
+           
     output_dir = Path(args.output_dir)
     output_dir.mkdir(parents=True, exist_ok=True)
         
@@ -558,16 +583,11 @@ def main_cli():
     train_result = trainer.train()
     print("Training finished:", train_result)
 
-    # Set up for tracking GPU usage if using CUDA, see https://huggingface.co/docs/transformers/v4.18.0/en/performance
     if args.use_gpu:
-        import pynvml
-        pynvml.nvmlInit()
-        num_gpus = torch.cuda.device_count()
-        for i in range(num_gpus):
-            handle = pynvml.nvmlDeviceGetHandleByIndex(i)
-            info = pynvml.nvmlDeviceGetMemoryInfo(handle)
-            print(f"GPU {i} handle: {handle}")
-            print(f"GPU {i} memory occupied: {info.used//1024**2} MB.")
+        try:
+            check_gpus(args.num_gpus)
+        except RuntimeError as e:
+            print("WARNING:", e)
     
     eval_results = trainer.evaluate()
     final_results_to_write.update(eval_results)
