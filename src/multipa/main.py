@@ -176,7 +176,7 @@ def compute_metrics(pred, processor):
 
     return PHONE_ERRORS_COMPUTER.compute(predictions=pred_str, references=label_str)
 
-def check_gpus(int: expected_gpus=0):
+def check_gpus(expected_gpus: int = 0):
     """Validates that the epxected number of GPUs is available and prints memory usage.
     Set up for tracking GPU usage if using CUDA, see https://huggingface.co/docs/transformers/v4.18.0/en/performance
 
