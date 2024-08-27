@@ -17,11 +17,8 @@ model_dir=data/models/vary_individuals_young_only_3
 dataset_cache=dataset_cache
 data_dir=data/buckeye
 
-
-module load python/3.11.0
-module load cuda/11.8.0
-
-source venv/bin/activate
+module load miniconda/22.11.1-1
+conda activate ./env
 
 python --version
 echo "How many GPUs found by pytorch?"
