@@ -1,12 +1,11 @@
 #!/bin/bash
 
 #SBATCH -c 12
-#SBATCH --mem=24GB
+#SBATCH --mem=16GB
 #SBATCH -p gpu-preempt
-#SBATCH --ntasks=1
-#SBATCH --gpus-per-task=4
+#SBATCH -G 4
 #SBATCH --constraint=[a100|m40|rtx8000]
-#SBATCH --time 24:00:00
+#SBATCH --time 10:00:00
 #SBATCH -o train_vary_individuals_young_only_1.out
 #SBATCH --mail-type END
 

@@ -1,6 +1,6 @@
 #!/bin/bash
 
-#SBATCH -c 8
+#SBATCH -c 12
 #SBATCH --mem=16GB
 #SBATCH -p gpu-preempt
 #SBATCH -G 8
