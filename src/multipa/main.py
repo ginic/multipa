@@ -219,7 +219,7 @@ def main_cli():
     parser.add_argument("--num_proc", type=int, default=8,
                         help="Specify the number of CPUs for preprocessing. Default set to 8.")
     parser.add_argument("--num_gpus", type=int, default=0, 
-                        help="If you're using GPUs and would like to check that they are all found correctly, set this to the expected number of GPUs >=1. Otherwise this paramter is ignored.")
+                        help="If you're using GPUs and would like to check that they are all found correctly, set this to the expected number of GPUs >=1. Otherwise this parameter is ignored.")
     parser.add_argument("-ns", "--no_space", action='store_true',
                         help="Use this flag remove spaces in IPA transcription.") 
     parser.add_argument("-o", "--output_dir", type=str, 
