@@ -4,7 +4,7 @@
 #SBATCH --mem=16GB
 #SBATCH -p gpu-preempt
 #SBATCH -G 4
-#SBATCH --constraint=[a100|m40|rtx8000]
+#SBATCH --constraint=vram40
 #SBATCH --time 10:00:00
 #SBATCH -o train_gender_split_30_female_5.out
 #SBATCH --mail-type END
