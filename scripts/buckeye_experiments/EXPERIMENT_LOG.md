@@ -45,8 +45,9 @@ Params to vary:
 
 
 ## `vary_individuals`
-Still keeping the total amount of data equal to half the training data and the gender split 50/50, exclude certain speakers completely. Train with the same model parameters but different individuals each time. 
-For reference, the speakers and their demographics included in the training data are: 
+These experiments keep the total amount of data equal to half the training data with the gender split 50/50, but further exclude certain speakers completely using the --speaker_restriction argument. This allows us to restrict speakers included in training data in any way. For the purposes of these experiments, we are focussed on the age demogrpahic of the user.  
+
+For reference, the speakers and their demographics included in the training data are as follows where the speaker age range 'y' means under 30 and 'o' means over 40: 
 
 | speaker_id | speaker_gender | speaker_age_range | 
 | ---------- | -------------- | ----------------- |
@@ -81,5 +82,5 @@ Goals:
 Params to vary: 
 - training seed (--train_seed)
 - demographic make up of training data by age, using --speaker_restriction 
-    - Experiments 1-3: only "young" individuals
-    - Experiments 4-6: only "old" individuals
+    - Experiments `young_only`: only individuals under 30, S01 S04 S08 S09 S12 S21 S06 S11 S13 S15 S28 S30
+    - Experiments `old_only`: only individuals over 40, S02 S05 S07 S14 S16 S17 S03 S10 S19 S22 S24

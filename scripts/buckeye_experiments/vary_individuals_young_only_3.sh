@@ -5,7 +5,7 @@
 #SBATCH -p gpu-preempt
 #SBATCH -G 4
 #SBATCH --constraint=vram40
-#SBATCH --time 10:00:00
+#SBATCH --time 20:00:00
 #SBATCH -o train_vary_individuals_young_only_3.out
 #SBATCH --mail-type END
 
