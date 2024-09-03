@@ -5,7 +5,7 @@
 #SBATCH -p gpu-preempt
 #SBATCH -G 1
 #SBATCH --time 12:00:00
-#SBATCH -o gender_split_70_female_eval.out
+#SBATCH -o vary_individuals_eval.out
 #SBATCH --mail-type END
 
 
@@ -27,4 +27,4 @@ multipa-evaluate --local_models \
  data/models/vary_individuals_young_only_3/wav2vec2-large-xlsr-buckeye-ipa \
  --eval_out $EVAL_RESULTS_CSV \
  --verbose_results_dir $DETAILED_RESULTS_DIR \
- --no_space --data_dir $DATA_DIR
+ --no_space --use_gpu --data_dir $DATA_DIR

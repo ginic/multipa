@@ -26,4 +26,4 @@ multipa-evaluate --local_models \
  data/models/gender_split_70_female_5/wav2vec2-large-xlsr-buckeye-ipa \
  --eval_out $EVAL_RESULTS_CSV \
  --verbose_results_dir $DETAILED_RESULTS_DIR \
- --no_space --data_dir $DATA_DIR
+ --no_space --use_gpu --data_dir $DATA_DIR
