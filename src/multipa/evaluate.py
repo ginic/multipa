@@ -12,8 +12,9 @@ import datasets
 import evaluate
 
 import pandas as pd
-import transformers
 import panphon.distance
+import transformers
+import torch 
 
 from multipa.data_utils import load_buckeye_split, clean_text, EMPTY_TRANSCRIPTION
 
@@ -87,8 +88,20 @@ def preprocess_test_data(test_dataset:datasets.Dataset, is_remove_space:bool=Fal
     return non_empty_test_data, empty_test_data
 
 
+def get_torch_device(use_gpu:bool=False):
+    """Return the torch.device to load the model to.
+
+    Args:
+        use_gpu (bool, optional): True if the user desires GPU for model inference. Defaults to False.
+    """
+    if use_gpu and torch.cuda.is_available():
+        return torch.device("cuda")
+    
+    return torch.device("cpu")
+
+
 def main(input_data:datasets.Dataset, eval_csv:Union[Path, str] , local_models:Optional[list[Path]]=None, hf_models:Optional[list[str]]=None, 
-         verbose_results_dir:Optional[Path]=None, is_remove_space:bool=False):
+         verbose_results_dir:Optional[Path]=None, is_remove_space:bool=False, use_gpu:bool=False):
     if local_models is None:
         local_models = []
     if hf_models is None:
@@ -102,10 +115,12 @@ def main(input_data:datasets.Dataset, eval_csv:Union[Path, str] , local_models:O
     print(empty_test_data)
 
     model_eval_tracker = ModelEvaluator()
+
+    selected_torch_device = get_torch_device(use_gpu)
     
     for model in local_models + hf_models: 
         print("Evaluating model:", model)
-        pipe = transformers.pipeline("automatic-speech-recognition", model=model, device_map="auto")
+        pipe = transformers.pipeline("automatic-speech-recognition", model=model, device=selected_torch_device)
         predictions = [d["text"] for d in pipe(non_empty_test_data["audio"])]
         metrics = model_eval_tracker.eval_non_empty_transcriptions(model, predictions, non_empty_test_data["ipa"])
              
@@ -154,11 +169,14 @@ def main_cli():
     parser.add_argument("-ns", "--no_space", action="store_true",
                         help="Use this flag remove spaces in IPA transcription.") 
 
+    parser.add_argument("-g", "--use_gpu", action="store_true",
+                        help="Use a GPU for inference if available. Otherwise the model runs on CPUs.") 
+
     args = parser.parse_args()
     
     buckeye_test = load_buckeye_split(args.data_dir, "test")
     main(buckeye_test, args.eval_out, args.local_models, args.hf_models, 
-         args.verbose_results_dir, args.no_space)
+         args.verbose_results_dir, args.no_space, args.use_gpu)
     
     
 if __name__ == "__main__":
