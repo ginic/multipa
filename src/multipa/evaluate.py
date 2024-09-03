@@ -105,7 +105,7 @@ def main(input_data:datasets.Dataset, eval_csv:Union[Path, str] , local_models:O
     
     for model in local_models + hf_models: 
         print("Evaluating model:", model)
-        pipe = transformers.pipeline("automatic-speech-recognition", model=model)
+        pipe = transformers.pipeline("automatic-speech-recognition", model=model, device_map="auto")
         predictions = [d["text"] for d in pipe(non_empty_test_data["audio"])]
         metrics = model_eval_tracker.eval_non_empty_transcriptions(model, predictions, non_empty_test_data["ipa"])
              
@@ -151,9 +151,9 @@ def main_cli():
     parser.add_argument("-v", "--verbose_results_dir", type=Path,
                         help="Path to folder to dump all transcriptions to for later inspection.")  
 
-    parser.add_argument("-ns", "--no_space", action='store_true',
+    parser.add_argument("-ns", "--no_space", action="store_true",
                         help="Use this flag remove spaces in IPA transcription.") 
-    
+
     args = parser.parse_args()
     
     buckeye_test = load_buckeye_split(args.data_dir, "test")

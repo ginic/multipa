@@ -21,6 +21,7 @@ classifiers = [
 
 # All the dependencies needed for running your module go here
 dependencies = [
+    "accelerate", # because we use device_map="auto" in evaluate.py
     "datasets==2.9.0", 
     "epitran==1.24",
     "eng_to_ipa",
