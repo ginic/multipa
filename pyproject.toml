@@ -54,6 +54,8 @@ dev = [
     "allosaurus",
     "black",
     "epitran",
+    "jinja2",
+    "huggingface_hub",
     "matplotlib",
     "scipy", 
     "tqdm"
