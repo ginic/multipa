@@ -159,7 +159,7 @@ def main_cli():
                         help="List of names of models stored on Hugging Face to download and evaluate.")
     
     parser.add_argument("-d", "--data_dir", type=Path, required=True, 
-                        help="Path local Buckeye pre-processed dataset to use for testing.")
+                        help="Path local Buckeye format pre-processed dataset to use for testing.")
 
     parser.add_argument("-e", "--eval_out", type=Path, required=True,
                         help="Output CSV files to write evaluation metrics to.")
