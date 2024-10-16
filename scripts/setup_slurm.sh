@@ -1,23 +1,25 @@
 #!/bin/bash
 # Installation and download IPA dictionaries
 
-#SBATCH -c 12
+#SBATCH -c 4
 #SBATCH --mem=12GB
+#SBATCH -G 2
 #SBATCH -p gpu-preempt
-#SBATCH --time 01:00:00
+#SBATCH --time 02:00:00
 #SBATCH -o setup_%j.out
 #SBATCH --mail-type END
 
 module load miniconda/22.11.1-1
-module load cuda/11.3.1
+conda env create --prefix ./env --file=multipa.yml
+conda activate ./env
 
-conda create -n multipa python=3.10 -y
-conda activate multipa
+python --version
 
-conda install pytorch==1.11.0 torchvision==0.12.0 torchaudio==0.11.0 cudatoolkit=11.3 -c pytorch
+echo "How many GPUs found by pytorch?"
+python -c "import torch; print(torch.cuda.device_count())"
 
-pip install --upgrade pip
+pip install .[gpu,dev,test]
 
-pip install .
 python -m unidic download
 
+python -m pytest

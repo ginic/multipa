@@ -1,4 +1,5 @@
 from pathlib import Path
+from typing import Union
 
 import datasets
 
@@ -74,7 +75,7 @@ def validate_dataset_files_match(raw_data, ipa_data, key:str, is_check_basename:
             raise DataLoadError(f"No match between IPA and raw data on '{key}'. IPA: {ipa_filename}, Raw: {filename}")
         
 def join_column(left_dataset, right_dataset, on_key:str, right_col:str, is_check_basename:bool=False, 
-                additional_check_col:str|None="sentence"):
+                additional_check_col:Union[str, None]="sentence"):
     """Joins a column from the right dataset into the left.
 
     Args:

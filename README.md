@@ -16,14 +16,15 @@ At this moment, we have the following languages incorporated available in the tr
 We aim to include more languages to take into account linguistic diversity.
 
 ## Installation
-Use a virtual environment, such as anaconda, with python 3.10. It's also a good idea to upgrade pip before you start: `pip install --upgrade pip`.
+Use a virtual environment, such as anaconda, with python 3.9. It's also a good idea to upgrade pip before you start: `pip install --upgrade pip`.
 Install pytorch dependencies first: `pip install torch==1.11.0 torchvision==0.12.0 torchaudio==0.11.0`
-Then install remaining requirements: `pip install .`. You can run `pip install -e .[dev,test]` for the developer set up.
+Then install remaining requirements: `pip install .`. You can run `pip install -e .[dev,test]` for the developer set up, after which the best way to check that the installation worked is to run unit tests with `pytest`.
 
 
 ## How to run
 First, run `pip install .` to install this package and required libraries.
 
+TODO: Update processing and training instructions with new subcommands for each dataset
 You need to convert the transcription in the CommonVoice dataset into IPA before training a model.
 To do so, run `src/multipa/preprocess.py`; for example,
 ```
