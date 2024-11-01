@@ -233,8 +233,7 @@ def main_cli():
     # This is a bit confusing, but it's basically reading the train/test splits from the preprocessing output. 
     parser.add_argument("-dd", "--data_dir", type=str, default="data_new",
                         help="Specify the directory path for the training/validation data files." \
-                        "Default is set to `data_new`, which stores the data from the as-of-now newest" \
-                        "`mozilla-foundation/common_voice_11_0`.")
+                        "Default is set to `data_new`.")
 
     # TODO Unclear if needed for buckeye
     parser.add_argument("--cache_dir", type=str, default="~/.cache/huggingface/datasets",

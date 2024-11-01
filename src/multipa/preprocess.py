@@ -166,7 +166,6 @@ def process_buckeye_subfolder(input_directory:Path, output_dir:Path, hugging_fac
     transcriptions_df = transcriptions_df.join(orthography_df.set_index(utt_id), on=utt_id)
     transcriptions_df["ipa"] = transcriptions_df["buckeye_transcript"].apply(lambda x: buckeye_to_ipa(x, is_keep_interrupts))
     # Filter out empty transcriptions (This should only remove rows when is_keep_interrupts=False)
-    #import pdb; pdb.set_trace()
     transcriptions_df = transcriptions_df.loc[(transcriptions_df["ipa"] != "") & (~transcriptions_df["ipa"].str.isspace())]
 
     # Join in demographic info
