@@ -16,12 +16,17 @@ At this moment, we have the following languages incorporated available in the tr
 We aim to include more languages to take into account linguistic diversity.
 
 ## Installation
-Use a virtual environment, such as anaconda, with python 3.10. It's also a good idea to upgrade pip before you start: `pip install --upgrade pip`.
+Use a virtual environment, such as anaconda, with python 3.9. It's also a good idea to upgrade pip before you start: `pip install --upgrade pip`.
 Install pytorch dependencies first: `pip install torch==1.11.0 torchvision==0.12.0 torchaudio==0.11.0`
-Then install remaining requirements: `pip install .`. You can run `pip install -e .[dev,test]` for the developer set up.
+Then install remaining requirements: `pip install .`. You can run `pip install -e .[dev,test]` for the developer set up, after which the best way to check that the installation worked is to run unit tests with `pytest`. You will also need to download the unidic dictionary with `python -m unidic download` (in the same python environment as you installation).
+
+For convenience, scripts for setup and installation are provided in `scripts/setup.sh` (local or personal computer) and `scripts/setup_slurm.sh` (Slurm compute cluster).
 
 
 ## How to run
+⚠️ *Warning*: This section is out of data.
+*TODO*: Update processing and training instructions with new subcommands for each dataset
+
 First, run `pip install .` to install this package and required libraries.
 
 You need to convert the transcription in the CommonVoice dataset into IPA before training a model.
@@ -48,6 +53,7 @@ multipa-train \
 ```
 for training with 7 languages, 1000 training samples and 200 validation samples for each, where audio samples with bad quality are not filtered out, additional data from Forvo are included, the suffix for the output model folder name is `japlmthufielta-nq-ns`, orthographic spaces are removed, the name of the vocab file is `vocab.json`, and the number of epochs is set to 10.
 
+### Evaluation
 To evaluate an existing models' performance on the test split of the Buckeye corpus, you can list models from Hugging Face with the `--hf_models` arg or models saved in local files with the `--local_models` flag. If you used the `--no_space` flag during training, you should use it during evaluation as well: 
 ```
 multipa-evaluate --hf_models ctaguchi/wav2vec2-large-xlsr-japlmthufielta-ipa-plus-2000 \ 
