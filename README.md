@@ -1,7 +1,9 @@
 # Introduction
-This project builds on the work of Taguchi et al. from [Universal Automatic Phonetic Transcription into the International Phonetic Alphabet](https://www.isca-archive.org/interspeech_2023/taguchi23_interspeech.pdf) with the goal of creating speech recognition models that produce high quality phonetic transcriptions of spontaneous speech for dialects of American English. This is a [Data Core Seed Funding](https://ds.cs.umass.edu/data-core-seed-funding) engagement between [UMass Amherst Center for Data Science](ds.cs.umass.edu) and [UMass Amherst Department of Linguistics](https://www.umass.edu/linguistics/).
+This project builds on the work of Taguchi et al. from [Universal Automatic Phonetic Transcription into the International Phonetic Alphabet](https://www.isca-archive.org/interspeech_2023/taguchi23_interspeech.pdf) with the goal of creating speech recognition models that produce high quality phonetic transcriptions of spontaneous speech for dialects of American English. 
 
 Note that we have made significant changes from the original fork, which was focused on universal transcription for multiple languages with the same model. In contrast, we are interested in creating extremely high quality transcripts for a single language and understanding how much data is necessary to achieve the desired quality. 
+
+This is a [Data Core Seed Funding](https://ds.cs.umass.edu/data-core-seed-funding) engagement between [UMass Amherst Center for Data Science](ds.cs.umass.edu) and [UMass Amherst Department of Linguistics](https://www.umass.edu/linguistics/). Visit our HuggingFace Spaces for [demos of the trained models](https://huggingface.co/spaces/ginic/multipa-english-to-ipa) or [detailed explanations on evaluation metrics](https://huggingface.co/spaces/ginic/phone_errors).
 
 
 # Installation
