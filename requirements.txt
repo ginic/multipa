@@ -1,15 +1,18 @@
 datasets==2.9.0
 epitran==1.24
+eng_to_ipa
 ffmpeg-python==0.2.0
+fsspec==2023.9.2
 jiwer==2.5.1
 librosa==0.9.2
-mecab-python3==1.0.6
+mecab-python3==1.0.8
 pandas==1.5.2
+phonecodes==1.1.0
 panphon==0.20.0
 pyarrow==8.0.0
 pydub==0.25.1
 romkan==0.2.1
-torch==1.11.0
-torchaudio==0.11.0
+torch==2.3.0
+torchaudio==2.3.0
 transformers @ git+https://github.com/huggingface/transformers@799cea64ac1029d66e9e58f18bc6f47892270723
 unidic==1.1.0

@@ -1,0 +1,77 @@
+# A build system is required to convert your code into a distributable package.
+[build-system]
+requires = ["setuptools >= 61.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "multipa"
+version = "0.0.0"
+description = "MultIPA is yet another automatic speech transcription model into phonetic IPA."
+readme = "README.md"
+
+# What version of python does your library work with?
+requires-python = ">=3.9,<3.12"
+
+# Metadata about your package in case you upload it to PYPI
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: OS Independent",
+]
+
+# All the dependencies needed for running your module go here
+dependencies = [
+    "datasets==2.9.0", 
+    "epitran==1.24",
+    "eng_to_ipa",
+    "evaluate",
+    "ffmpeg-python==0.2.0",
+    "fsspec==2023.9.2",
+    "jiwer",
+    "levenshtein",
+    "librosa==0.9.2",
+    "mecab-python3==1.0.8",
+    "pandas",
+    "phonecodes>=1.1.0", 
+    "panphon @ git+https://github.com/dmort27/panphon.git@6acd3833743a49e63941a0b740ee69eae1dafc1c",
+    "pyarrow",
+    "pydub==0.25.1",
+    "romkan==0.2.1",
+    "torch",
+    "torchaudio",
+    "transformers[torch]>=4.30.0",
+    "unidic==1.1.0",
+]
+
+[project.optional-dependencies]
+# Extra dependencies only needed for running tests go here
+test = [
+    "pytest",
+    ]
+
+# Dependencies that are useful only to developers, like an autoformatter and support for visualizations in jupyter notebooks go here
+dev = [
+    "allosaurus",
+    "black",
+    "epitran",
+    "jinja2",
+    "huggingface_hub",
+    "matplotlib",
+    "scipy", 
+    "tqdm"
+]
+
+# Useful dependencies for GPU usage monitoring
+gpu = [
+    "pynvml",
+]
+
+# If your project contains scripts you'd like to be available command line, you can define them here.
+# The value must be of the form "<package_name>:<module_name>.<function>"
+[project.scripts]
+multipa-preprocess = "multipa:preprocess.main_cli"
+multipa-train = "multipa:main.main_cli"
+multipa-evaluate = "multipa:evaluate.main_cli"
+
+[tools.setuptools]
+include-package-data = true

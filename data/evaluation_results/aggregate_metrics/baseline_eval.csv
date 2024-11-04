@@ -1,0 +1,3 @@
+model,mean_phone_error_rate,mean_phone_feature_error_rate,mean_feature_error_rate,total_phone_hallucinations
+data/models/hyperparam_tuning_1/wav2vec2-large-xlsr-buckeye-ipa,0.2904187272683854,4.3960015094834946,0.16722544723724717,0
+ctaguchi/wav2vec2-large-xlsr-japlmthufielta-ipa-plus-2000,0.8123775262618249,8.284627879503839,0.31380201178592954,0
