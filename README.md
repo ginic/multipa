@@ -1,5 +1,5 @@
 # Introduction
-This project builds on the work of Taguchi et al. from [Universal Automatic Phonetic Transcription into the International Phonetic Alphabet](https://www.isca-archive.org/interspeech_2023/taguchi23_interspeech.pdf) with the goal of creating speech recognition models that produce high quality phonetic transcriptions of spontaneous speech for dialects of American English. 
+This project builds on the work of Taguchi et al. from [Universal Automatic Phonetic Transcription into the International Phonetic Alphabet](https://www.isca-archive.org/interspeech_2023/taguchi23_interspeech.pdf) with the goal of creating speech recognition models that produce high quality phonetic transcriptions of spontaneous speech for dialects of American English. This is a [Data Core Seed Funding](https://ds.cs.umass.edu/data-core-seed-funding) engagement between [UMass Amherst Center for Data Science](ds.cs.umass.edu) and [UMass Amherst Department of Linguistics](https://www.umass.edu/linguistics/).
 
 Note that we have made significant changes from the original fork, which was focused on universal transcription for multiple languages with the same model. In contrast, we are interested in creating extremely high quality transcripts for a single language and understanding how much data is necessary to achieve the desired quality. 
 
@@ -27,7 +27,7 @@ Three input corpora are supported each with various associated options. To see a
     - Column 3 is the transcription of the utterance
 
 
-⚠️ *Warning*: For the purposes of this work, `librispeech` and `commonvoice` have not been thoroughly tested, but retained for backwards compatibility with the original Taguchi et al. work. 
+⚠️ *Warning*: For the purposes of this work, `librispeech` and `commonvoice` options have not been thoroughly tested, but should retain backwards compatibility with the original Taguchi et al. work. 
 
 
 ## Training 
@@ -83,8 +83,7 @@ Chihiro Taguchi, Yusuke Sakai, Parisa Haghani, David Chiang. "Universal Automati
 ```
 
 ## Contact
-Feel free to raise issues if you find any bugs.
-Also, feel free to contact `ctaguchi at nd.edu` for collaboration.
+Feel free to file a GitHub issue for bugs or questions. However, please understand that our team is small and may not be able to respond to all requests. 
 
 # CMU Dict License
 The [Carnegie Mellon Pronouncing Dictionary](https://github.com/Alexir/CMUdict/tree/master) distributed with this code in `src/multipa/resources/cmudict-0.7b-ipa.txt` is covered by the following BSD 3-Clause License. This license does not apply to other code in this repository.
