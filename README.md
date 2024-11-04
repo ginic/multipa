@@ -22,7 +22,7 @@ First, the corpus must be converted to the appropriate HuggingFace format with I
 Three input corpora are supported each with various associated options. To see all options, run `multipa-preprocess --help` or `multipa-preprocess <corpus> --help`. For all corpora you will need to specify an `--output_dir` output folder and `--num_proc` for number of processes in HuggingFace transformers.
 
 1) `librispeech`: Loads the "clean" portions of [LibriSpeech](https://huggingface.co/datasets/openslr/librispeech_asr) with "Train.100" as the training data and "Valid" as the validation set. LibriSpeech is English read speech.
-2) `commonvoice`: Loads data from [Common Voice Corpus 11.0](https://huggingface.co/datasets/mozilla-foundation/common_voice_11_0) dataset for languages specified using the `--languages/-l` option. Supported language codes are "ja", "pl", "mt", "hu", "fi", "el", "ta". Common Voice uses orthographic transcriptions which are converted to IPA using rules from the `multipa.converter` package. This corpus is a disk-space hog, so you will probably need to [clear the HuggingFace cache](https://huggingface.co/docs/datasets/v2.15.0/en/cache#cache-directory) using `--clear_cache` and `--cache_dir` options.
+2) `commonvoice`: Loads data from [Common Voice Corpus 11.0](https://huggingface.co/datasets/mozilla-foundation/common_voice_11_0) dataset for language codes specified using the `--languages/-l` option. Supported language codes are "ja", "pl", "mt", "hu", "fi", "el", "ta" (Japanese, Polish, Maltese, Hungarian, Finnish, Modern Greek and Tamil). Common Voice uses orthographic transcriptions which are converted to IPA using rules from the `multipa.converter` package. This corpus is a disk-space hog, so you will probably need to [clear the HuggingFace cache](https://huggingface.co/docs/datasets/v2.15.0/en/cache#cache-directory) using `--clear_cache` and `--cache_dir` options.
 3) `buckeye`: Takes as input a folder containing predefined train/dev/test splits of the [Buckeye Corpus](https://buckeyecorpus.osu.edu). Your input folder should contain directories named "Train", "Dev" and "Test" and each of those folders must contain audio files, header-less TSV files for orthographic and IPA transcriptions, each with the following columns: 
     - Column 1 is the utterance label. Add ".wav" to this to get the audio file for that utterance. The first two digits give the speaker #, the next two digits give the original file number from Buckeye. 
     - Column 2 is the length of the utterance in seconds
@@ -49,6 +49,8 @@ multipa-train  --num_train_epochs 10 \
         --no_space \
 
 ```
+
+
 
 ## Evaluation
 Metrics used for model evaluation are described with examples at https://huggingface.co/spaces/ginic/phone_errors.
