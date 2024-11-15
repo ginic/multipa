@@ -160,9 +160,9 @@ def process_buckeye_subfolder(input_directory:Path, output_dir:Path, hugging_fac
     utt_id = "utterance_id"
     speaker_id = "speaker_id"
     transcription_file = input_directory / "transcription_data.txt"
-    transcriptions_df = pd.read_csv(transcription_file, sep="\t", header=None, names=[utt_id, "duration", "buckeye_transcript"])
+    transcriptions_df = pd.read_csv(transcription_file, sep="\t", header=None, names=[utt_id, "duration", "buckeye_transcript"]).dropna()
     orthography_file = input_directory / "orthographic_data.txt"
-    orthography_df = pd.read_csv(orthography_file, sep="\t", header=None, names=[utt_id, "duration", "text"]).drop(columns="duration")
+    orthography_df = pd.read_csv(orthography_file, sep="\t", header=None, names=[utt_id, "duration", "text"]).drop(columns="duration").dropna()
     transcriptions_df = transcriptions_df.join(orthography_df.set_index(utt_id), on=utt_id)
     transcriptions_df["ipa"] = transcriptions_df["buckeye_transcript"].apply(lambda x: buckeye_to_ipa(x, is_keep_interrupts))
     # Filter out empty transcriptions (This should only remove rows when is_keep_interrupts=False)
