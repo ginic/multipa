@@ -21,5 +21,8 @@ You should also add project tags for each release in Github, see [Managing relea
 - Fixed bug in building vocabulary
 - Fixed bug in English to IPA conversion where keep_suprasegmental flag was ignored
 
+### Fixed
+- Drop rows with null values from Buckeye transcriptions
+
 ### Removed
  
