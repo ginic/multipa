@@ -1,6 +1,6 @@
 #!/bin/bash
 
-#SBATCH -c 12
+#SBATCH -c 8
 #SBATCH --mem=8GB
 #SBATCH -p gpu-preempt
 #SBATCH -G 1
@@ -15,7 +15,7 @@ EVAL_RESULTS_CSV=data/evaluation_results/aggregate_metrics/data_seed_eval.csv
 DETAILED_RESULTS_DIR=data/evaluation_results/detailed_predictions
 DATA_DIR=data/buckeye
 
-module load miniconda/22.11.1-1
+module load conda/latest
 conda activate ./env
 
 multipa-evaluate --local_models \

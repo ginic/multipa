@@ -18,7 +18,7 @@ dataset_cache=dataset_cache
 data_dir=data/buckeye
 
 
-module load miniconda/22.11.1-1
+module load conda/latest
 conda activate ./env
 
 python --version

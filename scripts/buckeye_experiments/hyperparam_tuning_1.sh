@@ -1,16 +1,16 @@
 #!/bin/bash
 
-#SBATCH -c 12
+#SBATCH -c 8
 #SBATCH --mem=12GB
 #SBATCH -p gpu-preempt
-#SBATCH -G 2
-#SBATCH --constraint=[a100|m40|rtx8000]
-#SBATCH --time 24:00:00
+#SBATCH -G 4
+#SBATCH --constraint=vram40
+#SBATCH --time 10:00:00
 #SBATCH -o train_hyperparam_tuning_1.out
 #SBATCH --mail-type END
 
-batch_size=2
-grad_acc=16
+batch_size=4
+grad_acc=4
 learning_rate=3e-4
 model_dir=data/models/hyperparam_tuning_1
 
@@ -18,7 +18,7 @@ dataset_cache=dataset_cache
 data_dir=data/buckeye
 
 
-module load miniconda/22.11.1-1
+module load conda/latest
 conda activate ./env
 
 python --version
