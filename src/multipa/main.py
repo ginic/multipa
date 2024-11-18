@@ -114,7 +114,7 @@ def remove_long_data(dataset, max_seconds=12):
     # remove data that is longer than max_seconds (6 seconds ideal)
     maxLength = max_seconds * 16000 
     dftest = dftest[dftest['len'] < maxLength]
-    dftest = dftest.drop('len', 1)
+    dftest = dftest.drop(columns=['len'])
     # convert back to pyarrow table to use in trainer
     dataset = dataset.from_pandas(dftest)
     # directly remove do not wait for gc

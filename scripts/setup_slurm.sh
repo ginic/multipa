@@ -9,7 +9,7 @@
 #SBATCH -o setup_%j.out
 #SBATCH --mail-type END
 
-module load miniconda/22.11.1-1
+module load conda/latest
 conda env create --prefix ./env --file=multipa.yml
 conda activate ./env
 
