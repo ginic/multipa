@@ -39,7 +39,7 @@ dependencies = [
     "romkan==0.2.1",
     "torch",
     "torchaudio",
-    "torchvision"
+    "torchvision",
     "transformers[torch]>=4.30.0",
     "unidic==1.1.0",
 ]
