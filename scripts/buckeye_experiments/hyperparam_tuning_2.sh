@@ -1,9 +1,9 @@
 #!/bin/bash
 
-#SBATCH -c 8
-#SBATCH --mem=12GB
+#SBATCH -c 12
+#SBATCH --mem=24GB
 #SBATCH -p gpu-preempt
-#SBATCH --constraint=vram40
+#SBATCH --constraint=vram48
 #SBATCH -G 4 
 #SBATCH --time 24:00:00
 #SBATCH -o hyperparam_tuning_2.out
@@ -19,10 +19,13 @@ data_dir=data/buckeye
 
 
 module load conda/latest
-conda activate ./env_new
+conda activate ./env_cuda121
 
 python --version
 
+pip list
+
 multipa-train --output_dir "$model_dir" --data_dir "$data_dir" --no_space --cache_dir "$dataset_cache" --use_gpu --num_train_epochs 10 --num_proc 8 \
     --learning_rate $learning_rate --per_device_train_batch_size $batch_size --gradient_accumulation_steps $grad_acc --mask_time_length 4 \
+    --train_seed 13 \
     buckeye --train_samples 4000 --val_samples 5605

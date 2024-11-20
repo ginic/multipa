@@ -1,0 +1,12 @@
+name: multipa_new
+channels:
+  - pytorch
+  - defaults
+  - nvidia
+dependencies:
+  - python=3.11
+  - pytorch=2.5.1
+  - pytorch-cuda=11.8
+  - torchaudio=2.5.1
+  - torchvision=0.20.1
+  
