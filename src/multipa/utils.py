@@ -1,3 +1,6 @@
+"""Helper functions for evaluation
+NOTE: These are left in for historical reference, but are out-dated. Use evaluate.py instead.
+"""
 import numpy as np
 import pandas as pd
 import evaluate
