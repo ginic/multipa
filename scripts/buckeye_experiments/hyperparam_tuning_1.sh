@@ -5,8 +5,8 @@
 #SBATCH -p gpu-preempt
 #SBATCH -G 4
 #SBATCH --constraint=vram40
-#SBATCH --time 10:00:00
-#SBATCH -o train_hyperparam_tuning_1.out
+#SBATCH --time 24:00:00
+#SBATCH -o hyperparam_tuning_1.out
 #SBATCH --mail-type END
 
 batch_size=4
@@ -19,9 +19,11 @@ data_dir=data/buckeye
 
 
 module load conda/latest
-conda activate ./env
+conda activate ./env_new
 
 python --version
+
+pip list
 
 multipa-train --output_dir "$model_dir" --data_dir "$data_dir" --no_space --cache_dir "$dataset_cache" --use_gpu --num_train_epochs 10 --num_proc 8 \
     --learning_rate $learning_rate --per_device_train_batch_size $batch_size --gradient_accumulation_steps $grad_acc --mask_time_length 4 \

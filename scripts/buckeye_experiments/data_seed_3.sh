@@ -6,7 +6,7 @@
 #SBATCH -G 4
 #SBATCH --constraint=[a100|m40|rtx8000]
 #SBATCH --time 06:00:00
-#SBATCH -o train_data_seed_3.out
+#SBATCH -o data_seed_3.out
 #SBATCH --mail-type END
 
 batch_size=4

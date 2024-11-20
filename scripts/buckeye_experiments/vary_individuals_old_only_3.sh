@@ -6,7 +6,7 @@
 #SBATCH -G 4
 #SBATCH --constraint=vram40
 #SBATCH --time 20:00:00
-#SBATCH -o train_vary_individuals_old_only_3.out
+#SBATCH -o vary_individuals_old_only_3.out
 #SBATCH --mail-type END
 
 batch_size=4
