@@ -1,7 +1,6 @@
 name: multipa_cuda121
 channels:
   - pytorch
-  - defaults
   - nvidia
 dependencies:
   - python=3.11

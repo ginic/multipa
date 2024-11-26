@@ -9,4 +9,3 @@ dependencies:
   - torchvision=0.11.2
   - torchaudio=0.10.1
   - cudatoolkit=11.3
-  #- mkl=2024.0 #Don't know if this helps, but may be worth trying

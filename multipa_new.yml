@@ -1,7 +1,6 @@
 name: multipa_new
 channels:
   - pytorch
-  - defaults
   - nvidia
 dependencies:
   - python=3.11
