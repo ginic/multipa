@@ -5,7 +5,7 @@
 #SBATCH -p gpu-preempt
 #SBATCH -G 1
 #SBATCH --time 12:00:00
-#SBATCH -o gender_split_70_female_eval.out
+#SBATCH -o %j_gender_split_70_female_eval.out
 #SBATCH --mail-type END
 
 

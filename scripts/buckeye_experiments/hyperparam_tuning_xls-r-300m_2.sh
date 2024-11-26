@@ -4,13 +4,14 @@
 #SBATCH --mem=12GB
 #SBATCH -p gpu-preempt
 #SBATCH --constraint=vram40
-#SBATCH -G 4 
+#SBATCH -G 2
+#SBATCH --nodes=1
 #SBATCH --time 24:00:00
-#SBATCH -o hyperparam_tuning_xls-r-300m_2.out
+#SBATCH -o %j_hyperparam_tuning_xls-r-300m_2.out
 #SBATCH --mail-type END
 
 batch_size=4
-grad_acc=4
+grad_acc=8
 learning_rate=3e-5
 model_dir=data/models/hyperparam_tuning_xls-r-300m_2
 
@@ -19,7 +20,7 @@ data_dir=data/buckeye
 
 
 module load conda/latest
-conda activate ./env_new
+conda activate ./env
 
 python --version
 

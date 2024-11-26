@@ -5,7 +5,7 @@
 #SBATCH -p gpu-preempt
 #SBATCH -G 1
 #SBATCH --time 09:00:00
-#SBATCH -o data_seed_eval.out
+#SBATCH -o %j_data_seed_eval.out
 #SBATCH --mail-type END
 
 

@@ -5,7 +5,7 @@
 #SBATCH -p gpu-preempt
 #SBATCH -G 1
 #SBATCH --time 12:00:00
-#SBATCH -o vary_individuals_eval.out
+#SBATCH -o %j_vary_individuals_eval.out
 #SBATCH --mail-type END
 
 

@@ -6,7 +6,7 @@
 #SBATCH -G 4
 #SBATCH --constraint=vram40
 #SBATCH --time 10:00:00
-#SBATCH -o gender_split_30_female_1.out
+#SBATCH -o %j_gender_split_30_female_1.out
 #SBATCH --mail-type END
 
 batch_size=4

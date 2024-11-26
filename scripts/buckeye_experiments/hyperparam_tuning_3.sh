@@ -6,7 +6,7 @@
 #SBATCH --constraint=vram40
 #SBATCH -G 4
 #SBATCH --time 10:00:00
-#SBATCH -o hyperparam_tuning_3.out
+#SBATCH -o %j_hyperparam_tuning_3.out
 #SBATCH --mail-type END
 
 batch_size=4

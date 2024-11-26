@@ -6,7 +6,7 @@
 #SBATCH -G 4
 #SBATCH --constraint=vram40
 #SBATCH --time 10:00:00
-#SBATCH -o data_seed_1.out
+#SBATCH -o %j_data_seed_1.out
 #SBATCH --mail-type END
 
 batch_size=4
