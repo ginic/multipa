@@ -37,9 +37,9 @@ dependencies = [
     "pyarrow",
     "pydub==0.25.1",
     "romkan==0.2.1",
-    "torch",
-    "torchaudio",
-    "torchvision",
+    "torch==2.5.1",
+    "torchaudio==2.5.1",
+    "torchvision==0.20.1",
     "transformers[torch]>=4.30.0,<4.43.0",
     "unidic==1.1.0",
 ]

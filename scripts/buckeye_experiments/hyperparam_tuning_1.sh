@@ -5,9 +5,9 @@
 #SBATCH -p gpu-preempt
 #SBATCH -G 2
 #SBATCH --nodes=1
-#SBATCH --constraint=[a100|m40|rtx8000]
+#SBATCH --constraint=vram40
 #SBATCH --time 24:00:00
-#SBATCH -o %j_%j_hyperparam_tuning_1.out
+#SBATCH -o %j_hyperparam_tuning_1.out
 #SBATCH --mail-type END
 
 batch_size=4
@@ -20,7 +20,7 @@ data_dir=data/buckeye
 
 
 module load conda/latest
-conda activate ./env
+conda activate ./env_cuda124
 
 python --version
 

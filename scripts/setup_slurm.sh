@@ -10,8 +10,8 @@
 #SBATCH --mail-type END
 
 module load conda/latest
-conda env create --prefix ./env_cuda121 --file=multipa_cuda121.yml
-conda activate ./env_cuda121
+conda env create --prefix ./env_cuda121 --file=multipa_cuda124.yml
+conda activate ./env_cuda124
 
 python --version
 
