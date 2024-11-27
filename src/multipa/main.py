@@ -46,10 +46,17 @@ class DataCollatorCTCWithPadding:
             Maximum length of the ``input_values`` of the returned list and optionally padding length (see above).
         max_length_labels (:obj:`int`, `optional`):
             Maximum length of the ``labels`` returned list and optionally padding length (see above).
-
+        pad_to_multiple_of (:obj:`int`, `optional`):
+            If set will pad the sequence to a multiple of the provided value.
+            This is especially useful to enable the use of Tensor Cores on NVIDIA hardware with compute capability >=
+            7.5 (Volta).
     """
     processor: Wav2Vec2Processor
     padding: Union[bool, str] = True
+    max_length: Optional[int] = None
+    max_length_labels: Optional[int] = None
+    pad_to_multiple_of: Optional[int] = None
+    pad_to_multiple_of_labels: Optional[int] = None
 
     def __call__(self, features: List[Dict[str, Union[List[int], torch.Tensor]]]) -> Dict[str, torch.Tensor]:
         # Split inputs and labels since they have to be of different lengths
@@ -60,12 +67,16 @@ class DataCollatorCTCWithPadding:
         batch = self.processor.pad(
             input_features,
             padding=self.padding,
+            max_length=self.max_length,
+            pad_to_multiple_of=self.pad_to_multiple_of,
             return_tensors="pt",
             )
         with self.processor.as_target_processor():
             labels_batch = self.processor.pad(
                 label_features,
                 padding=self.padding,
+                max_length=self.max_length_labels,
+                pad_to_multiple_of=self.pad_to_multiple_of_labels,
                 return_tensors="pt",
                 )
 
@@ -94,7 +105,7 @@ def prepare_dataset_ipa(batch: dict, processor_ipa:Wav2Vec2Processor) -> dict:
     return batch
 
 
-def remove_long_and_short_audio(dataset, max_seconds=12, min_seconds=0.1):
+def remove_long_data(dataset, max_seconds=12):
     # convert pyarrow table to pandas
     dftest = dataset.to_pandas()
     # find out length of input_values
@@ -102,9 +113,8 @@ def remove_long_and_short_audio(dataset, max_seconds=12, min_seconds=0.1):
     # for wav2vec training we already resampled to 16khz
     # remove data that is longer than max_seconds (6 seconds ideal)
     maxLength = max_seconds * 16000 
-    minLength = min_seconds * 16000
-    dftest = dftest[(dftest['len'] < maxLength) & (dftest['len'] > minLength)]
-    dftest = dftest.drop(columns=['len'])
+    dftest = dftest[dftest['len'] < maxLength]
+    dftest = dftest.drop('len', 1)
     # convert back to pyarrow table to use in trainer
     dataset = dataset.from_pandas(dftest)
     # directly remove do not wait for gc
@@ -200,8 +210,7 @@ def main_cli():
                         help="The batch size per GPU/CPU for training, defaults to 2.")
     parser.add_argument("-ga", "--gradient_accumulation_steps", type=int, default=4, 
                         help="The number of gradient accumulation steps during training, defaults to 4")
-    parser.add_argument("-ml", "--max-length", type=float, default=12, help="Maximum audio length allowed for training & validation samples in seconds. Defaults to 12.")
-    parser.add_argument("-nl", "--min-length", type=float, default=0.1, help="Minimum audio length allowed for training & validation samples in seconds. Defaults to 0.1")
+    parser.add_argument("-ml", "--max-length", type=float, default=12, help="Maximum audio length of training & validation samples in seconds. Defaults to 12.")
     parser.add_argument("-mt", "--mask_time_length", type=int, default=10, 
                         help="Mask time length for the model. If you know your training data contains audio less than 0.2 seconds, make the mask time length small. Defaults to 10.")
     parser.add_argument("-g", "--use_gpu", action="store_true", help="Use this flag if a GPU is available for training.")
@@ -416,6 +425,8 @@ def main_cli():
     full_train_data = full_train_data.map(lambda x: clean_text(x, is_remove_space = args.no_space))
     full_valid_data = full_valid_data.map(lambda x: clean_text(x, is_remove_space = args.no_space))
 
+
+
     # Preprocessing 
     print("Creating vocabulary...")
     vocab_dict_ipa = create_vocabulary(full_train_data, full_valid_data)
@@ -467,17 +478,16 @@ def main_cli():
     full_train_data = full_train_data.map(
         processor_func,
         remove_columns=full_train_data.column_names,
-        #num_proc=args.num_proc
+        num_proc=args.num_proc
     )
     full_valid_data = full_valid_data.map(
         processor_func,
         remove_columns=full_valid_data.column_names,
-        #num_proc=args.num_proc
+        num_proc=args.num_proc
     )
-
-    print(f"Removing audio files longer than {args.max_length} and shortner than {args.min_length} secs...")
-    full_train_data = remove_long_and_short_audio(full_train_data, args.max_length, args.min_length)
-    full_valid_data = remove_long_and_short_audio(full_valid_data, args.max_length, args.min_length)
+    print(f"Removing audio files longer than {args.max_length} secs...")
+    full_train_data = remove_long_data(full_train_data, args.max_length)
+    full_valid_data = remove_long_data(full_valid_data, args.max_length)
 
     # Shuffle the dataset
     print("Shuffling the dataset...")
@@ -551,10 +561,10 @@ def main_cli():
         num_train_epochs=args.num_train_epochs,
         fp16=False, # False to keep memory usage down 
         # Defaults are fine for logging and evaluation, but if you'd like to save time, you can 
-        eval_strategy="steps",
-        save_strategy="steps",
-        save_steps=400,
-        eval_steps=400,
+        evaluation_strategy="epoch",
+        save_strategy="epoch",
+        #save_steps=500,
+        #eval_steps=500,
         logging_steps=100,
         learning_rate=args.learning_rate,
         warmup_steps=500,
