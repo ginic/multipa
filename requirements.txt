@@ -7,7 +7,7 @@ fsspec==2023.9.2
 jiwer==2.5.1
 librosa==0.9.2
 mecab-python3==1.0.8
-pandas
+pandas==1.5.2
 phonecodes==1.1.4
 panphon==0.20.0
 pyarrow==8.0.0
