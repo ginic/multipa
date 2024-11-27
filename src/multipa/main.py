@@ -467,12 +467,12 @@ def main_cli():
     full_train_data = full_train_data.map(
         processor_func,
         remove_columns=full_train_data.column_names,
-        num_proc=args.num_proc
+        #num_proc=args.num_proc
     )
     full_valid_data = full_valid_data.map(
         processor_func,
         remove_columns=full_valid_data.column_names,
-        num_proc=args.num_proc
+        #num_proc=args.num_proc
     )
 
     print(f"Removing audio files longer than {args.max_length} and shortner than {args.min_length} secs...")
