@@ -18,7 +18,7 @@ dataset_cache=dataset_cache
 data_dir=data/buckeye
 
 module load conda/latest
-conda activate ./env
+conda activate ./env_cuda124
 
 python --version
 echo "How many GPUs found by pytorch?"

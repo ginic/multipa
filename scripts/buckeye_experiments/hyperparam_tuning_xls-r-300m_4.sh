@@ -13,13 +13,13 @@ batch_size=4
 grad_acc=1
 learning_rate=3e-4
 model_dir=data/models/hyperparam_tuning_4
-
+ñ
 dataset_cache=dataset_cache
 data_dir=data/buckeye
 
 
 module load conda/latest
-conda activate ./env
+conda activate ./env_cuda124
 
 python --version
 

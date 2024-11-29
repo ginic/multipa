@@ -16,7 +16,7 @@ DETAILED_RESULTS_DIR=data/evaluation_results/detailed_predictions
 DATA_DIR=data/buckeye
 
 module load conda/latest
-conda activate ./env
+conda activate ./env_cuda124
 
 multipa-evaluate --local_models \
  data/models/vary_individuals_old_only_1/wav2vec2-large-xlsr-buckeye-ipa \

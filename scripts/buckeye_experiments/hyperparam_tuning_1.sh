@@ -19,7 +19,7 @@ data_dir=data/buckeye
 
 
 module load conda/latest
-conda activate ./env_cuda124
+conda activate ./env_cuda124_cuda124
 
 python --version
 
