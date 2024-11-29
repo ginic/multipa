@@ -74,6 +74,9 @@ You can run the original Taguchi et al. model (trained on 1k samples for each la
 - Additional data from Forvo themselves are not uploaded in this repository.
 - The full list of IPA symbols was obtained from the [Panphon](https://github.com/dmort27/panphon) library.
 
+## Known Issues
+- `RuntimeError: Expected input_lengths to have value at least 0, but got value -1 (while checking arguments for ctc_loss_gpu)` appears sometimes just before training starts. This is non-deterministic and can be fixed by changing `--train_seed`.
+
 ## Citation
 Chihiro Taguchi, Yusuke Sakai, Parisa Haghani, David Chiang. "Universal Automatic Phonetic Transcription into the International Phonetic Alphabet". INTERSPEECH 2023.
 ```
