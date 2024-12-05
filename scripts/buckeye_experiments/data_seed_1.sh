@@ -1,12 +1,12 @@
 #!/bin/bash
 
-#SBATCH -c 12
+#SBATCH -c 8
 #SBATCH --mem=16GB
 #SBATCH -p gpu-preempt
 #SBATCH -G 4
-#SBATCH --constraint=[a100|m40|rtx8000]
-#SBATCH --time 06:00:00
-#SBATCH -o train_data_seed_1.out
+#SBATCH --constraint=vram40
+#SBATCH --time 10:00:00
+#SBATCH -o %j_data_seed_1.out
 #SBATCH --mail-type END
 
 batch_size=4
@@ -18,8 +18,8 @@ dataset_cache=dataset_cache
 data_dir=data/buckeye
 
 
-module load miniconda/22.11.1-1
-conda activate ./env
+module load conda/latest
+conda activate ./env_cuda124
 
 python --version
 

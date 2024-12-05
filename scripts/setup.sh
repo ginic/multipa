@@ -1,7 +1,7 @@
 #!/bin/bash
-# Installation and download IPA dictionaries
+# Installation for non-GPU and download IPA dictionaries
 
 pip install --upgrade pip
-pip install torch==2.3.0 torchvision==0.18.0 torchaudio==2.3.0
+pip install torch==2.5.1 torchvision==0.20.1 torchaudio==2.5.1
 pip install .[dev,test]
 python -m unidic download
