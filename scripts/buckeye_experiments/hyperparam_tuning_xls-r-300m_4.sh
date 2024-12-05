@@ -3,14 +3,14 @@
 #SBATCH -c 8
 #SBATCH --mem=12GB
 #SBATCH -p gpu-preempt
-#SBATCH -G 8
+#SBATCH -G 4
 #SBATCH --constraint=vram40
 #SBATCH --time 24:00:00
 #SBATCH -o %j_hyperparam_tuning_xls-r-300m_4.out
 #SBATCH --mail-type END
 
 batch_size=4
-grad_acc=1
+grad_acc=2
 learning_rate=3e-4
 model_dir=data/models/hyperparam_tuning_xls-r-300m_4
 dataset_cache=dataset_cache

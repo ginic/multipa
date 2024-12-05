@@ -11,7 +11,7 @@
 
 batch_size=4
 grad_acc=4
-learning_rate=9e-4
+learning_rate=75e-5
 
 model_dir=data/models/hyperparam_tuning_3
 
