@@ -1,16 +1,16 @@
 #!/bin/bash
 
 #SBATCH -c 8
-#SBATCH --mem=16GB
+#SBATCH --mem=12GB
 #SBATCH -p gpu-preempt
-#SBATCH -G 4
-#SBATCH --constraint=[a100|m40|rtx8000]
-#SBATCH --time 06:00:00
+#SBATCH -G 8
+#SBATCH --constraint=vram40
+#SBATCH --time 10:00:00
 #SBATCH -o %j_data_seed_4.out
 #SBATCH --mail-type END
 
 batch_size=4
-grad_acc=4
+grad_acc=1
 learning_rate=3e-4
 model_dir=data/models/data_seed_4
 
