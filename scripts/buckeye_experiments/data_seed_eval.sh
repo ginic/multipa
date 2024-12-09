@@ -1,11 +1,11 @@
 #!/bin/bash
 
-#SBATCH -c 12
+#SBATCH -c 8
 #SBATCH --mem=8GB
 #SBATCH -p gpu-preempt
 #SBATCH -G 1
 #SBATCH --time 09:00:00
-#SBATCH -o data_seed_eval.out
+#SBATCH -o %j_data_seed_eval.out
 #SBATCH --mail-type END
 
 
@@ -15,8 +15,8 @@ EVAL_RESULTS_CSV=data/evaluation_results/aggregate_metrics/data_seed_eval.csv
 DETAILED_RESULTS_DIR=data/evaluation_results/detailed_predictions
 DATA_DIR=data/buckeye
 
-module load miniconda/22.11.1-1
-conda activate ./env
+module load conda/latest
+conda activate ./env_cuda124
 
 multipa-evaluate --local_models \
  data/models/data_seed_1/wav2vec2-large-xlsr-buckeye-ipa \
