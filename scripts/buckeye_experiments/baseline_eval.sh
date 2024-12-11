@@ -19,7 +19,7 @@ DATA_DIR=data/buckeye
 module load conda/latest
 conda activate ./env_cuda124
 
-multipa-evaluate --hf_models ctaguchi/wav2vec2-large-xlsr-japlmthufielta-ipa-plus-2000 \
+multipa-evaluate --hf_models ctaguchi/wav2vec2-large-xlsr-japlmthufielta-ipa-plus-2000 facebook/wav2vec2-lv-60-espeak-cv-ft \ 
  --local_models data/models/hyperparam_tuning_1/wav2vec2-large-xlsr-buckeye-ipa \
  --eval_out $EVAL_RESULTS_CSV \
  --verbose_results_dir $DETAILED_RESULTS_DIR \
