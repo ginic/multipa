@@ -9,16 +9,20 @@
 #SBATCH -o setup_%j.out
 #SBATCH --mail-type END
 
-module load miniconda/22.11.1-1
-conda env create --prefix ./env --file=multipa.yml
-conda activate ./env
+module load conda/latest
+conda env create --prefix ./env_cuda124 --file=multipa_cuda124.yml
+conda activate ./env_cuda124
+
+conda list
 
 python --version
 
+pip install .[gpu,dev,test]
+
+conda list
+
 echo "How many GPUs found by pytorch?"
 python -c "import torch; print(torch.cuda.device_count())"
-
-pip install .[gpu,dev,test]
 
 python -m unidic download
 

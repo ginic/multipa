@@ -114,7 +114,7 @@ def remove_long_data(dataset, max_seconds=12):
     # remove data that is longer than max_seconds (6 seconds ideal)
     maxLength = max_seconds * 16000 
     dftest = dftest[dftest['len'] < maxLength]
-    dftest = dftest.drop('len', 1)
+    dftest = dftest.drop(columns = ['len'],)
     # convert back to pyarrow table to use in trainer
     dataset = dataset.from_pandas(dftest)
     # directly remove do not wait for gc
@@ -214,6 +214,8 @@ def main_cli():
     parser.add_argument("-mt", "--mask_time_length", type=int, default=10, 
                         help="Mask time length for the model. If you know your training data contains audio less than 0.2 seconds, make the mask time length small. Defaults to 10.")
     parser.add_argument("-g", "--use_gpu", action="store_true", help="Use this flag if a GPU is available for training.")
+    parser.add_argument("-bm", "--base_model", type=str, default="facebook/wav2vec2-large-xlsr-53", choices=["facebook/wav2vec2-xls-r-300m", "facebook/wav2vec2-large-xlsr-53"],
+                        help="The base pre-trained speech recognition model to use.")
 
     # Data processing parameters used for all corpora
     parser.add_argument("--num_proc", type=int, default=8,
@@ -504,9 +506,9 @@ def main_cli():
     print("Data collator created")
     
     # Model
-    print("Defining the model...")
+    print(f"Defining the model from pretrained '{args.base_model}'")
     model = Wav2Vec2ForCTC.from_pretrained(
-        "facebook/wav2vec2-large-xlsr-53",
+        args.base_model,
         attention_dropout=0.1,
         hidden_dropout=0.1,
         feat_proj_dropout=0.0,
@@ -528,7 +530,8 @@ def main_cli():
     model.freeze_feature_encoder() 
     print("Feature extractor frozen")
 
-    model_dir = output_dir / f"wav2vec2-large-xlsr-{args.corpus}-ipa{args.suffix}"
+    base_model_id = args.base_model.split("/")[1]
+    model_dir = output_dir / f"{base_model_id}-{args.corpus}-ipa{args.suffix}"
 
     print("Running garbage collection before training")
     gc.collect()
@@ -553,7 +556,7 @@ def main_cli():
         # Effective batch size = per_device_train_batch_size * gradient_accumulation_steps
         per_device_train_batch_size=args.per_device_train_batch_size,
         gradient_accumulation_steps=args.gradient_accumulation_steps,
-        gradient_checkpointing=True, # Can use this if memory is a problem, but training will be slower
+        #gradient_checkpointing=True, # Can use this if memory is a problem, but training will be slower
         #optim="adafactor", #Can use if memory is a problem, but convergence might be slower
         num_train_epochs=args.num_train_epochs,
         fp16=False, # False to keep memory usage down 

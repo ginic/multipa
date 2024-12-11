@@ -3,16 +3,16 @@
 #SBATCH -c 8
 #SBATCH --mem=12GB
 #SBATCH -p gpu-preempt
-#SBATCH -G 8
+#SBATCH -G 4
 #SBATCH --constraint=vram40
 #SBATCH --time 24:00:00
-#SBATCH -o %j_hyperparam_tuning_5.out
+#SBATCH -o %j_hyperparam_tuning_6.out
 #SBATCH --mail-type END
 
 batch_size=4
-grad_acc=1
-learning_rate=9e-4
-model_dir=data/models/hyperparam_tuning_5
+grad_acc=2
+learning_rate=75e-5
+model_dir=data/models/hyperparam_tuning_6
 
 dataset_cache=dataset_cache
 data_dir=data/buckeye
