@@ -1,5 +1,0 @@
-model,mean_phone_error_rate,mean_phone_feature_error_rate,mean_feature_error_rate,total_phone_hallucinations
-data/models/data_seed_1/wav2vec2-large-xlsr-buckeye-ipa,0.2757898159268292,4.182508039640349,0.16237305872982508,0
-data/models/data_seed_2/wav2vec2-large-xlsr-buckeye-ipa,0.3073538440288941,4.611135722255038,0.16623879809581615,0
-data/models/data_seed_3/wav2vec2-large-xlsr-buckeye-ipa,0.2894405644933643,4.394811970860405,0.16774211446387377,0
-data/models/data_seed_4/wav2vec2-large-xlsr-buckeye-ipa,0.27916279318048887,4.365360635295661,0.16572978006861344,0

@@ -13,11 +13,16 @@ You should also add project tags for each release in Github, see [Managing relea
 - Buckeye Corpus support in preprocessing and model training
 - Resources directory for pronounciation dictionary and IPA vocabulary files
 - Bash scripts for installation and training on slurm added in the `scripts` folder
+- GitHub action to run tests
 
 ### Changed
 - All build and packaging switched to use only pyproject.toml
 - Scripts read in files from user-specified paths rather than hard coded paths
 - Separated Librispeech (English) data processing and model training from Common Voice (other languages)
+
+### Fixed
+- Drop rows with null values from Buckeye transcriptions
+- Drop duplicate rows in Buckeye transcriptions
 - Fixed bug in building vocabulary
 - Fixed bug in English to IPA conversion where keep_suprasegmental flag was ignored
 

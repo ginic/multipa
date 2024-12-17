@@ -2,7 +2,7 @@
 # Script for converting the Buckeye corpus (with train/validation/test splits already defined) to Huggingface format
 
 # TODO Fill in desired paths
-raw_buckeye_dir=~/Downloads/BuckeyeData
+raw_buckeye_dir=~/Downloads/BuckeyeDataGlottals
 dataset_cache=dataset_cache
 data_dir=data/buckeye
 
