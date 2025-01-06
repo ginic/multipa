@@ -18,7 +18,7 @@ DATA_DIR=data/buckeye
 
 module load conda/latest
 module load uri/main
-module module load all/eSpeak-NG/1.50-gompi-2020a
+module load all/eSpeak-NG/1.50-gompi-2020a
 conda activate ./env_cuda124
 
 multipa-evaluate --hf_models ctaguchi/wav2vec2-large-xlsr-japlmthufielta-ipa-plus-2000 facebook/wav2vec2-lv-60-espeak-cv-ft \
