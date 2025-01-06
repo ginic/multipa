@@ -1,11 +1,12 @@
 #!/bin/bash
 
 #SBATCH -c 8
-#SBATCH --mem=16GB
+#SBATCH --mem=12GB
 #SBATCH -p gpu-preempt
-#SBATCH -G 4
+#SBATCH --nodes=1
+#SBATCH --gpus-per-node=4
 #SBATCH --constraint=vram40
-#SBATCH --time 20:00:00
+#SBATCH --time 8:00:00
 #SBATCH -o %j_vary_individuals_young_only_1.out
 #SBATCH --mail-type END
 
