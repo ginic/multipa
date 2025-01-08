@@ -1,0 +1,7 @@
+model,mean_phone_error_rate,mean_phone_feature_error_rate,mean_feature_error_rate,total_phone_hallucinations
+data/models/vary_individuals_old_only_1/wav2vec2-large-xlsr-53-buckeye-ipa,0.2899958951532062,4.449366673229639,0.1665100849944797,0
+data/models/vary_individuals_old_only_2/wav2vec2-large-xlsr-53-buckeye-ipa,0.30289422610989686,4.5029697447004,0.16653492048637578,0
+data/models/vary_individuals_old_only_3/wav2vec2-large-xlsr-53-buckeye-ipa,0.29991705232710836,4.442836516374615,0.16808673666363558,0
+data/models/vary_individuals_young_only_1/wav2vec2-large-xlsr-53-buckeye-ipa,0.30476660434546543,4.474863818336943,0.16689784315881576,0
+data/models/vary_individuals_young_only_2/wav2vec2-large-xlsr-53-buckeye-ipa,0.2931229925415546,4.402490647765308,0.16772571708843897,0
+data/models/vary_individuals_young_only_3/wav2vec2-large-xlsr-53-buckeye-ipa,0.2993455520714245,4.471672573341209,0.1666989594711948,0
