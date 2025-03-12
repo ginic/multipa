@@ -59,6 +59,7 @@ dev = [
     "huggingface_hub",
     "matplotlib",
     "phonemizer",
+    "seaborn",
     "scipy",
     "tqdm"
 ]
