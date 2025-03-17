@@ -1,0 +1,2 @@
+model,mean_phone_error_rate,mean_phone_feature_error_rate,mean_feature_error_rate,total_phone_hallucinations
+facebook/wav2vec2-xlsr-53-espeak-cv-ft,0.6155189097021805,6.498974535669753,0.5115487801153201,0

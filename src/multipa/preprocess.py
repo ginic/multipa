@@ -156,17 +156,20 @@ def process_buckeye_subfolder(input_directory:Path, output_dir:Path, hugging_fac
     Returns:
         int: Number of files processed
     """
+    print("Preparing Buckeye split:", hugging_face_split)
     # Combine orthographic transcriptions, Buckeye and IPA transcriptions
     utt_id = "utterance_id"
     speaker_id = "speaker_id"
     transcription_file = input_directory / "transcription_data.txt"
-    transcriptions_df = pd.read_csv(transcription_file, sep="\t", header=None, names=[utt_id, "duration", "buckeye_transcript"])
+    transcriptions_df = pd.read_csv(transcription_file, sep="\t", header=None, names=[utt_id, "duration", "buckeye_transcript"]).dropna().drop_duplicates()
     orthography_file = input_directory / "orthographic_data.txt"
-    orthography_df = pd.read_csv(orthography_file, sep="\t", header=None, names=[utt_id, "duration", "text"]).drop(columns="duration")
-    transcriptions_df = transcriptions_df.join(orthography_df.set_index(utt_id), on=utt_id)
+    orthography_df = pd.read_csv(orthography_file, sep="\t", header=None, names=[utt_id, "duration", "text"]).drop(columns="duration").dropna().drop_duplicates()
+    transcriptions_df = pd.merge(transcriptions_df, orthography_df, how="left", on=utt_id)
+    print("Number of transcripts read:", len(transcriptions_df))
     transcriptions_df["ipa"] = transcriptions_df["buckeye_transcript"].apply(lambda x: buckeye_to_ipa(x, is_keep_interrupts))
     # Filter out empty transcriptions (This should only remove rows when is_keep_interrupts=False)
     transcriptions_df = transcriptions_df.loc[(transcriptions_df["ipa"] != "") & (~transcriptions_df["ipa"].str.isspace())]
+    print("Number of transcripts after filtering interrupts:", len(transcriptions_df))
 
     # Join in demographic info
     transcriptions_df[speaker_id] = transcriptions_df[utt_id].apply(lambda x: x[:3].upper())
@@ -187,7 +190,9 @@ def process_buckeye_subfolder(input_directory:Path, output_dir:Path, hugging_fac
         shutil.copy2(input_directory / f, output_split_dir)
 
     # Number of audio files should match number of transcriptions
-    assert len(list(output_split_dir.glob(f"*{audio_suffix}"))) == len(transcriptions_df)
+    num_files_copied = len(list(output_split_dir.glob(f"*{audio_suffix}")))
+    print("Number of files copied:", num_files_copied)
+    assert num_files_copied == len(transcriptions_df)
     return len(transcriptions_df)
 
 

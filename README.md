@@ -7,8 +7,9 @@ This is a [Data Core Seed Funding](https://ds.cs.umass.edu/data-core-seed-fundin
 
 
 # Installation
-Use a virtual environment, such as anaconda, with python 3.9. It's also a good idea to upgrade pip before you start: `pip install --upgrade pip`.
-Install pytorch dependencies first: `pip install torch==1.11.0 torchvision==0.12.0 torchaudio==0.11.0`
+Use a virtual environment, such as conda. 
+It's also a good idea to upgrade pip before you start: `pip install --upgrade pip`.
+Install pytorch dependencies first: `pip install pytorch==2.5.1 torchvision==0.20.0 torchaudio==2.5.1`. A conda environment for cuda 12.4 has been provided in multipa.yml. For other installation options and GPU settings, see [pytorch.org](https://pytorch.org). 
 Then install remaining requirements: `pip install .`. You can run `pip install -e .[dev,test]` for the developer set up, after which the best way to check that the installation worked is to run unit tests with `pytest`. You will also need to download the unidic dictionary with `python -m unidic download` (in the same python environment as you installation).
 
 For convenience, scripts for setup and installation are provided in `scripts/setup.sh` (local or personal computer) and `scripts/setup_slurm.sh` (Slurm compute cluster).
@@ -72,6 +73,9 @@ You can run the original Taguchi et al. model (trained on 1k samples for each la
 - If you are using AFS, `preprocess.py` might cause `OS Error: File too large` due to reaching the limit of the number of files that a directory can accommodate.
 - Additional data from Forvo themselves are not uploaded in this repository.
 - The full list of IPA symbols was obtained from the [Panphon](https://github.com/dmort27/panphon) library.
+
+## Known Issues
+- `RuntimeError: Expected input_lengths to have value at least 0, but got value -1 (while checking arguments for ctc_loss_gpu)` appears sometimes just before training starts. This is non-deterministic and can be fixed by changing `--train_seed`.
 
 ## Citation
 Chihiro Taguchi, Yusuke Sakai, Parisa Haghani, David Chiang. "Universal Automatic Phonetic Transcription into the International Phonetic Alphabet". INTERSPEECH 2023.

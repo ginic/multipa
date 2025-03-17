@@ -1,3 +1,4 @@
 model,mean_phone_error_rate,mean_phone_feature_error_rate,mean_feature_error_rate,total_phone_hallucinations
-data/models/hyperparam_tuning_1/wav2vec2-large-xlsr-buckeye-ipa,0.2904187272683854,4.3960015094834946,0.16722544723724717,0
-ctaguchi/wav2vec2-large-xlsr-japlmthufielta-ipa-plus-2000,0.8123775262618249,8.284627879503839,0.31380201178592954,0
+data/models/hyperparam_tuning_1/wav2vec2-large-xlsr-53-buckeye-ipa,0.2860536652259393,4.313947955634312,0.1670765255220882,0
+ctaguchi/wav2vec2-large-xlsr-japlmthufielta-ipa-plus-2000,0.8125737150701358,8.283118396009714,0.313654119853507,0
+facebook/wav2vec2-lv-60-espeak-cv-ft,0.6092898279993133,6.254085449891711,0.5140112425095846,0
