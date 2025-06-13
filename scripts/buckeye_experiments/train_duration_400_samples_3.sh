@@ -6,15 +6,15 @@
 #SBATCH -G 4
 #SBATCH --constraint=vram40
 #SBATCH --time 10:00:00
-#SBATCH -o %j_train_duration_100_samples_4.out
+#SBATCH -o %j_train_duration_400_samples_3.out
 #SBATCH --mail-type END
 
 batch_size=4
 grad_acc=4
 learning_rate=3e-4
-model_dir=data/models/train_duration_100_samples_4
-rand_seed=505
-train_samples=100
+model_dir=data/models/train_duration_400_samples_3
+rand_seed=771
+train_samples=400
 
 dataset_cache=dataset_cache
 data_dir=data/buckeye

@@ -21,10 +21,10 @@ classifiers = [
 
 # All the dependencies needed for running your module go here
 dependencies = [
-    "datasets==2.9.0",
+    "datasets==3.6.0",
     "epitran==1.24",
     "eng_to_ipa",
-    "evaluate==0.3.0",
+    "evaluate==0.4.3",
     "ffmpeg-python==0.2.0",
     "fsspec==2023.9.2",
     "jiwer",
