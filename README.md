@@ -3,7 +3,7 @@ This project builds on the work of Taguchi et al. from [Universal Automatic Phon
 
 Note that we have made significant changes from the original fork, which was focused on universal transcription for multiple languages with the same model. In contrast, we are interested in creating extremely high quality transcripts for a single language and understanding how much data is necessary to achieve the desired quality. 
 
-This is a [Data Core Seed Funding](https://ds.cs.umass.edu/data-core-seed-funding) engagement between [UMass Amherst Center for Data Science](ds.cs.umass.edu) and [UMass Amherst Department of Linguistics](https://www.umass.edu/linguistics/). Visit our HuggingFace Spaces for [demos of the trained models](https://huggingface.co/spaces/ginic/multipa-english-to-ipa) or [detailed explanations on evaluation metrics](https://huggingface.co/spaces/ginic/phone_errors).
+This is a [Data Core Seed Funding](https://ds.cs.umass.edu/data-core-seed-funding) engagement between [UMass Amherst Center for Data Science](https://ds.cs.umass.edu/) and [UMass Amherst Department of Linguistics](https://www.umass.edu/linguistics/). Visit our HuggingFace Spaces for [demos of the trained models](https://huggingface.co/spaces/ginic/multipa-english-to-ipa) or [detailed explanations on evaluation metrics](https://huggingface.co/spaces/ginic/phone_errors).
 
 
 # Installation
