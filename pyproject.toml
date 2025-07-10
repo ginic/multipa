@@ -54,6 +54,7 @@ test = [
 dev = [
     "allosaurus",
     "black",
+    "ctc-forced-aligner @ git+https://github.com/ginic/ctc-forced-aligner.git",
     "epitran",
     "jinja2",
     "huggingface_hub",
