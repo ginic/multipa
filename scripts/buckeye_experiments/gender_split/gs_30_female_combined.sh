@@ -5,7 +5,7 @@
 #SBATCH -p gpu-preempt
 #SBATCH -G 4
 #SBATCH --constraint=vram40
-#SBATCH --time 60:00:00
+#SBATCH --time 48:00:00
 #SBATCH -o %j_combined_gender_split_30_female.out
 #SBATCH --mail-type END
 
