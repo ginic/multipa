@@ -59,7 +59,6 @@ dev = [
     "jinja2",
     "huggingface_hub",
     "matplotlib",
-    "phonemizer",
     "seaborn",
     "scipy",
     "tqdm"
