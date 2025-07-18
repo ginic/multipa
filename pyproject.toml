@@ -10,7 +10,7 @@ description = "MultIPA is yet another automatic speech transcription model into 
 readme = "README.md"
 
 # What version of python does your library work with?
-requires-python = ">=3.9,<3.12"
+requires-python = ">=3.10,<3.12"
 
 # Metadata about your package in case you upload it to PYPI
 classifiers = [
