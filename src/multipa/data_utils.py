@@ -400,38 +400,49 @@ class BuckeyePreprocessor(CorpusPreprocessor):
 
         return gender_examples
 
-    def get_train_split(self):
-        train_data = load_buckeye_split(self.data_dir, "train")
-        # For Buckeye, it's important to remove examples that are too long/short first
-        # to maintain the specified gender split and restrictions to certain speakers
+    def _filter_train_dataset(self, train_data: datasets.Dataset) -> datasets.Dataset:
+        """Filters the training data according to the specified configuration. For Buckeye, it's important to remove
+        examples that are too long/short first to maintain the specified ratios for gender split.
 
+        The following are done in this order:
+        - Removing data shorter than min_length
+        - Removing data longer than max_length
+        - Filtering data that doesn't match speaker restrictions
+        - Filtering samples to match the desired gender makeup of the training set
+        """
         logger.info(
             "Filtering Buckeye training data with sample duration >= %s, < %s", self.min_length, self.max_length
         )
-        train_data = train_data.filter(lambda x: x["duration"] < self.max_length, num_proc=self.num_proc)
-        train_data = train_data.filter(lambda x: x["duration"] >= self.min_length, num_proc=self.num_proc)
+        filtered_data = train_data.filter(lambda x: x["duration"] < self.max_length, num_proc=self.num_proc)
+        filtered_data = filtered_data.filter(lambda x: x["duration"] >= self.min_length, num_proc=self.num_proc)
 
         # Handle restrictions to particular individuals
         if self.speaker_restriction:
             logger.info("Filtering Buckeye training to speaker ids %s", self.speaker_restriction)
-            train_data = train_data.filter(
+            filtered_data = filtered_data.filter(
                 lambda x: x["speaker_id"] in self.speaker_restriction, num_proc=self.num_proc
             )
 
-        logger.info("Buckeye train dataset size after filtering by duration and speaker id: %s", len(train_data))
+        logger.info("Buckeye train dataset size after filtering by duration and speaker id: %s", len(filtered_data))
 
         # Select equal numbers of examples matching the gender split
         logger.info(
             "Sampling Buckeye training data by gender split with %s ratio female speakers", self.percent_female
         )
         num_female_examples = int(self.train_sampler.num_samples * self.percent_female)
-        female_examples = self._sample_gender_subset(train_data, num_female_examples, self.train_sampler.seed, "f")
+        female_examples = self._sample_gender_subset(filtered_data, num_female_examples, self.train_sampler.seed, "f")
 
         num_male_examples = self.train_sampler.num_samples - num_female_examples
-        male_examples = self._sample_gender_subset(train_data, num_male_examples, self.train_sampler.seed, "m")
+        male_examples = self._sample_gender_subset(filtered_data, num_male_examples, self.train_sampler.seed, "m")
 
         full_train_data = datasets.concatenate_datasets([female_examples, male_examples])
         logger.info("Full train dataset size: %s", len(full_train_data))
+        return full_train_data
+
+    def get_train_split(self):
+        train_data = load_buckeye_split(self.data_dir, "train")
+
+        full_train_data = self._filter_train_dataset(train_data)
 
         return self.remove_unused_columns(full_train_data)
 
