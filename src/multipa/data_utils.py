@@ -1,5 +1,6 @@
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
+import importlib.resources
 import logging
 import os
 from pathlib import Path
@@ -24,12 +25,28 @@ class DataLoadError(Exception):
     pass
 
 
-def filter_low_quality(dataset, num_proc):
-    dataset = dataset.filter(lambda batch: batch["down_votes"] == 0, num_proc)
-    return dataset
+def extract_all_chars_ipa(batch: dict) -> dict:
+    """Returns the all characters which appear in the "ipa" field in the
+    batch. Used to build vocabulary if there is no tokenization or whitespace
+    delimiting around phonetic symbols.
+    """
+    all_text = "".join(batch["ipa"])
+    return {"vocab": list(set(all_text))}
 
 
-def remove_space(batch: dict, col_key) -> dict:
+def extract_whitespace_delimited_symbols(batch: dict) -> dict:
+    """Returns the whitespace delimited strings that appear in the "ipa" field
+    in the batch. Used to build vocabulary when there is tokenization present.
+    """
+    all_text = " ".join(batch["ipa"])
+    symbols = set(all_text.split())
+    return {"vocab": list(symbols)}
+
+
+def remove_space(batch: dict, col_key: str) -> dict:
+    """Returns the batch with whitespace removed in the
+    value at batch[col_key].
+    """
     ipa = batch[col_key]
     ipa = ipa.split()
     ipa = "".join(ipa)
@@ -38,14 +55,7 @@ def remove_space(batch: dict, col_key) -> dict:
 
 
 def replace_none(batch: dict, col_key) -> dict:
-    """Replaces any None value for the given col_key with the empty string '' instead.
-
-    Args:
-        batch (dict): Dictionary containing specified col)key
-
-    Returns:
-        dict:
-    """
+    """Replaces any None value for the given col_key with the empty string '' instead."""
     ipa = batch[col_key]
     if ipa is None:
         batch[col_key] = EMPTY_TRANSCRIPTION
@@ -69,7 +79,7 @@ def clean_text(batch: dict, text_key="ipa", is_remove_space=True):
     return batch
 
 
-def validate_dataset_files_match(raw_data, ipa_data, key: str, is_check_basename: bool = False):
+def validate_dataset_files_match(raw_data, ipa_data, key: str, is_check_basename: bool = False) -> None:
     if len(raw_data) != len(ipa_data):
         raise DataLoadError("Length of raw data and IPA transcription data doesn't match.")
 
@@ -84,10 +94,8 @@ def validate_dataset_files_match(raw_data, ipa_data, key: str, is_check_basename
             raise DataLoadError(f"No match between IPA and raw data on '{key}'. IPA: {ipa_filename}, Raw: {filename}")
 
 
-def concatenate_common_voice(datasetlist: list):
-    """
-    Concatenate more than one datasets from Common Voice.
-    """
+def concatenate_common_voice(datasetlist: list[datasets.Dataset]) -> datasets.Dataset:
+    """Concatenate more than one datasets from Common Voice."""
     init_data = datasetlist[0]
     for d in datasetlist:
         assert d.features.type == init_data.features.type
@@ -102,7 +110,7 @@ def join_column(
     right_col: str,
     is_check_basename: bool = False,
     additional_check_col: str | None = "sentence",
-):
+) -> datasets.Dataset:
     """Joins a column from the right dataset into the left.
 
     Args:
@@ -137,7 +145,7 @@ def load_common_voice_split(
     cache_dir: str | os.PathLike,
     num_proc: int,
     dataset_name: str = "mozilla-foundation/common_voice_11_0",
-):
+) -> datasets.Dataset:
     """Loads the specified split of Common Voice dataset, reading IPA transcriptions for a local JSON file.
     Optionally filter to only include high quality data from Common Voice.
     Always does special language specific filtering for Tamil, language="ta"
@@ -168,7 +176,7 @@ def load_common_voice_split(
         full_dataset = full_dataset.filter(lambda batch: "ச" not in batch["sentence"], num_proc=num_proc)
 
     if quality_filter:
-        full_dataset = filter_low_quality(full_dataset, num_proc=num_proc)
+        full_dataset = full_dataset.filter(lambda batch: batch["down_votes"] == 0, self.num_proc)
 
     return full_dataset
 
@@ -181,7 +189,7 @@ def load_librispeech_split(
     cache_dir: str | os.PathLike,
     num_proc: int,
     dataset_name: str = "librispeech_asr",
-):
+) -> datasets.Dataset:
     """Load a full split of the Librispeech dataset from Huggingface, reading IPA transcriptions from a local JSON file.
     Rename columns to match Common Voice format, so training and validation code can be shared.
 
@@ -204,11 +212,11 @@ def load_librispeech_split(
 
     # Join in IPA data by matching file name
     full_dataset = join_column(raw_audio, ipa_dataset, "file", "ipa")
-    full_dataset = full_dataset.rename("file", "path")
+    full_dataset = full_dataset.rename_column("file", "path")
     return full_dataset
 
 
-def load_buckeye_split(corpus_root_dir: str | os.PathLike, split: str):
+def load_buckeye_split(corpus_root_dir: str | os.PathLike, split: str) -> datasets.Dataset:
     dataset_split = datasets.load_dataset("audiofolder", data_dir=corpus_root_dir, split=split)
     # Output data has duplicates despite following the format from HuggingFace documentation, so deduplicate based on utterance id
     deduplicated_df = dataset_split.to_pandas().drop_duplicates("utterance_id")
@@ -246,6 +254,9 @@ class CorpusPreprocessor(ABC):
         val_sampler: SimpleSampler | SubsetSampler,
         num_proc: int,
         file_suffix: str,
+        unused_columns: None | list[str] = None,
+        is_remove_spaces: bool = False,
+        vocab_resource_file: None | str = None,
     ):
         self.dataset_name = dataset_name
         self.data_dir = data_dir
@@ -254,22 +265,94 @@ class CorpusPreprocessor(ABC):
         self.val_sampler = val_sampler
         self.num_proc = num_proc
         self.suffix = file_suffix
+        self.unused_columns = unused_columns
+        self.is_remove_spaces = is_remove_spaces
+        self.vocab_resource_file = vocab_resource_file
 
     @abstractmethod
-    def get_train_split(self):
+    def get_train_split(self) -> datasets.Dataset:
         pass
 
     @abstractmethod
-    def get_validation_split(self):
+    def get_validation_split(self) -> datasets.Dataset:
         pass
 
-    def create_vocab(self, train_dataset):
-        # TODO
-        pass
+    def clean_ipa_transcription(self, dataset: datasets.Dataset) -> datasets.Dataset:
+        """Replace missing IPA transcriptions with the empty string and remove spaces
+        if the corpus requires it.
+
+        This is closely related to vocabulary creation, as symbols may be whitespace delimited
+        or not, depending on how the IPA transcriptions were originally obtained.
+        """
+        return dataset.map(lambda x: clean_text(x, is_remove_space=self.is_remove_spaces), num_proc=self.num_proc)
+
+    def create_vocabulary(self, *datasets: datasets.Dataset) -> dict[str, int]:
+        """Build the vocabulary from the dataset and any specified vocab resource files.
+
+        Returns:
+            dict[str, int]: symbol to index dictionary expected by HuggingFace
+        """
+        final_vocab = set()
+        if self.is_remove_spaces:
+            token_func = extract_all_chars_ipa
+        else:
+            token_func = extract_whitespace_delimited_symbols
+        for d in datasets:
+            d_vocab = d.map(
+                token_func,
+                batched=True,
+                keep_in_memory=True,
+                remove_columns=d.column_names,
+                num_proc=self.num_proc,
+            )
+            final_vocab = final_vocab | set(d_vocab["vocab"])
+
+        if self.vocab_resource_file is not None:
+            vocab_file = importlib.resources.files("multipa.resources").joinpath(self.vocab_resource_file)
+            vocab_from_file = set([line.strip() for line in vocab_file.read_text().splitlines()])
+
+            # Check and warn about symbol mismatches
+            symbols_missing_in_dataset = vocab_from_file - final_vocab
+            if len(symbols_missing_in_dataset) > 0:
+                logger.warning(
+                    "%s symbol(s) present in vocabulary didn't appear in data: %s",
+                    len(symbols_missing_in_dataset),
+                    symbols_missing_in_dataset,
+                )
+
+            symbols_not_in_file = final_vocab - vocab_from_file
+            if len(symbols_not_in_file) > 0:
+                logger.warning(
+                    "%s symbol(s) in dataset not in vocab file: %s", len(symbols_not_in_file), symbols_not_in_file
+                )
+
+            final_vocab = final_vocab | vocab_from_file
+
+        vocab_dict_ipa = {v: k for k, v in enumerate(final_vocab)}
+        vocab_dict_ipa[UNKNOWN_TOKEN] = len(vocab_dict_ipa)
+        vocab_dict_ipa[PADDING_TOKEN] = len(vocab_dict_ipa)
+        return vocab_dict_ipa
+
+    def remove_unused_columns(self, dataset: datasets.Dataset) -> datasets.Dataset:
+        """Returns the dataset dropping any columns not used by the CorpusPreprocessor"""
+        if self.unused_columns is not None:
+            cols_to_remove = list(set(self.unused_columns).intersection(dataset.column_names))
+            logger.debug("Removing unnecessary columns: %s", cols_to_remove)
+            return dataset.remove_columns(cols_to_remove)
+        return dataset
 
 
 class BuckeyePreprocessor(CorpusPreprocessor):
-    dataset_name = "buckeye"
+    DATASET_NAME = "buckeye"
+    COLS_TO_DROP = [
+        "speaker_gender",
+        "speaker_age_range",
+        "interviewer_gender",
+        "buckeye_transcript",
+        "duration",
+        "utterance_id",
+        "text",
+    ]
 
     def __init__(
         self,
@@ -279,8 +362,8 @@ class BuckeyePreprocessor(CorpusPreprocessor):
         val_sampler: SimpleSampler,
         num_proc: int,
         file_suffix: str,
-        min_length: float,
-        max_length: float,
+        min_length: float = 0.1,
+        max_length: float = 12,
         speaker_restriction: None | list[str] = None,
         percent_female: float = 0.5,
     ):
@@ -292,7 +375,15 @@ class BuckeyePreprocessor(CorpusPreprocessor):
         else:
             self.speaker_restriction = speaker_restriction
         super().__init__(
-            BuckeyePreprocessor.dataset_name, data_dir, cache_dir, train_sampler, val_sampler, num_proc, file_suffix
+            BuckeyePreprocessor.DATASET_NAME,
+            data_dir,
+            cache_dir,
+            train_sampler,
+            val_sampler,
+            num_proc,
+            file_suffix,
+            unused_columns=self.COLS_TO_DROP,
+            is_remove_spaces=False,
         )
 
     def _sample_gender_subset(self, dataset, num_samples: int, seed: int, gender_value: Literal["m", "f"]):
@@ -340,20 +431,29 @@ class BuckeyePreprocessor(CorpusPreprocessor):
         full_train_data = datasets.concatenate_datasets([female_examples, male_examples])
         logger.info("Full train dataset size: %s", len(full_train_data))
 
-        return full_train_data
+        return self.remove_unused_columns(full_train_data)
 
-    def get_validation_split(self):
+    def get_validation_split(self) -> datasets.Dataset:
         valid_data = load_buckeye_split(self.data_dir, "validation")
         valid_limit = min(self.val_sampler.num_samples, len(valid_data))
         # Shuffle because datasets are often ordered by speaker and you want a variety of speakers.
         full_valid_data = valid_data.shuffle(seed=self.val_sampler.seed).select(range(valid_limit))
-        return full_valid_data
-
-    def create_vocab(self, train_dataset):
-        pass
+        return self.remove_unused_columns(full_valid_data)
 
 
 class CommonVoicePreprocessor(CorpusPreprocessor):
+    COLS_TO_DROP = [
+        "accent",
+        "age",
+        "client_id",
+        "down_votes",
+        "gender",
+        "locale",
+        "segment",
+        "up_votes",
+    ]
+    VOCAB_RESOURCE = "full_vocab_ipa.txt"
+
     def __init__(
         self,
         data_dir: str | os.PathLike,
@@ -366,7 +466,17 @@ class CommonVoicePreprocessor(CorpusPreprocessor):
         quality_filter: bool = True,
     ):
         self.quality_filter = quality_filter
-        super().__init__(dataset_name, data_dir, cache_dir, train_sampler, val_sampler, num_proc, file_suffix)
+        super().__init__(
+            dataset_name,
+            data_dir,
+            cache_dir,
+            train_sampler,
+            val_sampler,
+            num_proc,
+            file_suffix,
+            unused_columns=self.COLS_TO_DROP,
+            vocab_resource_file=self.VOCAB_RESOURCE,
+        )
 
     def _get_split(self, split_name: str, huggingface_split: str, sampler: SubsetSampler):
         data_list = []
@@ -396,7 +506,7 @@ class CommonVoicePreprocessor(CorpusPreprocessor):
 
         logger.debug("Concatentating CommonVoice voice language subsets to final dataset")
         full_data = concatenate_common_voice(data_list)
-        return full_data
+        return self.remove_unused_columns(full_data)
 
     def get_train_split(self):
         return self._get_split("train", "train", self.train_sampler)
@@ -406,7 +516,13 @@ class CommonVoicePreprocessor(CorpusPreprocessor):
 
 
 class LibriSpeechPreprocessor(CorpusPreprocessor):
-    dataset_name = "librispeech_asr"
+    DATASET_NAME = "librispeech_asr"
+    COLS_TO_DROP = [
+        "speaker_id",
+        "chapter_id",
+        "id",
+    ]
+    VOCAB_RESOURCE = "full_vocab_ipa.txt"
 
     def __init__(
         self,
@@ -418,13 +534,15 @@ class LibriSpeechPreprocessor(CorpusPreprocessor):
         file_suffix: str,
     ):
         super().__init__(
-            LibriSpeechPreprocessor.dataset_name,
+            LibriSpeechPreprocessor.DATASET_NAME,
             data_dir,
             cache_dir,
             train_sampler,
             val_sampler,
             num_proc,
             file_suffix,
+            unused_columns=self.COLS_TO_DROP,
+            vocab_resource_file=self.VOCAB_RESOURCE,
         )
 
     def _get_split(self, split_name, huggingface_split, sampler, json_filename):
@@ -435,10 +553,11 @@ class LibriSpeechPreprocessor(CorpusPreprocessor):
             json_filename,
             self.cache_dir,
             self.num_proc,
-            self.dataset_name,
+            self.DATASET_NAME,
         )
         limit = min(sampler.num_samples, len(dataset))
-        return dataset.shuffle(seed=sampler.seed).select(range(limit))
+        dataset = dataset.shuffle(seed=sampler.seed).select(range(limit))
+        return self.remove_unused_columns(dataset)
 
     def get_train_split(self):
         return self._get_split("train", "train.clean.100", self.train_sampler, f"en_train{self.suffix}.json")

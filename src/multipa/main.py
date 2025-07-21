@@ -112,16 +112,6 @@ class DataCollatorCTCWithPadding:
         return batch
 
 
-# TODO Add whitespace separation option here to be used for Buckeye
-def extract_all_chars_ipa(
-    batch: dict,
-) -> dict:
-    # Change this function later at some point to create vocabulary based on
-    # phonemes, not on characters
-    all_text = "".join(batch["ipa"])
-    return {"vocab": list(set(all_text))}
-
-
 def prepare_dataset_ipa(batch: dict, processor_ipa: Wav2Vec2Processor) -> dict:
     audio = batch["audio"]
     # batched output is unbatched
@@ -148,29 +138,6 @@ def remove_long_data(dataset, max_seconds=12):
     # directly remove do not wait for gc
     del dftest
     return dataset
-
-
-def create_vocabulary(*datasets, use_resource_vocab=True):
-    """Determines the vocabulary of IPA characters needed for the model.
-
-    Returns:
-        dict: vocab -> index
-    """
-    vocab_set = set()
-    for d in datasets:
-        d_vocab = d.map(extract_all_chars_ipa, batched=True, keep_in_memory=True, remove_columns=d.column_names)
-        vocab_set = vocab_set | set(d_vocab["vocab"])
-
-    # Add in data from resources file
-    if use_resource_vocab:
-        all_vocab_file = importlib.resources.files("multipa.resources").joinpath("full_vocab_ipa.txt")
-        new_vocab = set([l.strip() for l in all_vocab_file.read_text().splitlines()])
-        vocab_set = vocab_set | new_vocab
-
-    vocab_dict_ipa = {v: k for k, v in enumerate(vocab_set)}
-    vocab_dict_ipa[UNKNOWN_TOKEN] = len(vocab_dict_ipa)
-    vocab_dict_ipa[PADDING_TOKEN] = len(vocab_dict_ipa)
-    return vocab_dict_ipa
 
 
 def compute_metrics(pred, processor):
@@ -290,9 +257,6 @@ def main_cli():
         type=int,
         default=0,
         help="If you're using GPUs and would like to check that they are all found correctly, set this to the expected number of GPUs >=1. Otherwise this parameter is ignored.",
-    )
-    parser.add_argument(
-        "-ns", "--no_space", action="store_true", help="Use this flag remove spaces in IPA transcription."
     )
     parser.add_argument(
         "-o", "--output_dir", type=str, help="Specify the directory to save files for vocab, stats and trained models."
@@ -496,46 +460,18 @@ def main_cli():
     full_train_data = corpus_processor.get_train_split()
     full_valid_data = corpus_processor.get_validation_split()
 
-    # TODO column cleanup can go in CorpusPreprocessor class
-    unnecessary_columns = [
-        "accent",
-        "age",
-        "client_id",
-        "down_votes",
-        "gender",
-        "locale",
-        "segment",
-        "up_votes",  # for Common Voice
-        "speaker_id",
-        "chapter_id",
-        "id",  # for librispeech
-        "speaker_gender",
-        "speaker_age_range",
-        "interviewer_gender",
-        "buckeye_transcript",
-        "duration",
-        "utterance_id",
-        "text",  # for Buckeye
-    ]
-    columns_to_remove = set(unnecessary_columns).intersection(full_train_data.column_names)
-    print("Removing unnecessary columns:", columns_to_remove)
-    full_train_data = full_train_data.remove_columns(columns_to_remove)
-    full_valid_data = full_valid_data.remove_columns(columns_to_remove)
-    print("Unnecessary columns removed. Data preview:")
+    print("Data selection complete. Data preview:")
     print(full_train_data[0])
     assert full_train_data.features.type == full_valid_data.features.type
 
-    # TODO text cleaning and vocab construction can go in CorpusPreprocessor class
-    full_train_data = full_train_data.map(lambda x: clean_text(x, is_remove_space=args.no_space))
-    full_valid_data = full_valid_data.map(lambda x: clean_text(x, is_remove_space=args.no_space))
+    full_train_data = corpus_processor.clean_ipa_transcription(full_train_data)
+    full_valid_data = corpus_processor.clean_ipa_transcription(full_valid_data)
 
     # Preprocessing
     print("Creating vocabulary...")
-    vocab_dict_ipa = create_vocabulary(full_train_data, full_valid_data)
+    vocab_dict_ipa = corpus_processor.create_vocabulary(full_train_data, full_valid_data)
 
     print("Writing vocab json files...")
-    # Don't forget to change the file name when you use different languages,
-    # otherwise the vocab file will be lost
     vocab_file = output_dir / f"{args.corpus}_ipa_vocab{args.suffix}.json"
     with open(vocab_file, "w") as vocab_file_ipa:
         json.dump(vocab_dict_ipa, vocab_file_ipa)

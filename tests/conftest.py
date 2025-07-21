@@ -33,5 +33,14 @@ def mock_common_voice():
 
 @pytest.fixture(scope="session")
 def mock_buckeye():
-    mock_dict = {}
-    pass
+    mock_dict = {
+        "utterance_id": [1, 2, 3, 4, 5, 6, 7, 8, 9, 10],
+        "duration": [0.09, 0.09, 1.1, 2.2, 3.3, 4.4, 5.5, 6.6, 7.7, 8.8],
+        "buckey_transcript": ["DH IH S IH Z AH T EH1 S T"] * 10,
+        "text": ["this is a test"] * 10,
+        "ipa": ["ð ɪ s ɪ z ə t ɛ s t"] * 10,
+        "speaker_id": [f"S{i:02d}" for i in range(1, 11)],
+        "speaker_gender": ["m"] * 5 + ["f"] * 5,
+        "speaker_age_range": ["y", "o"] * 5,
+    }
+    return Dataset.from_dict(mock_dict)
