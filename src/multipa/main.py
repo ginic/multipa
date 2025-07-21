@@ -451,9 +451,10 @@ def main_cli():
     output_dir.mkdir(parents=True, exist_ok=True)
 
     # Set up corpus stats tracking file
-    stats_file = output_dir / f"stats_train_valid{args.suffix}.txt"
-    with open(stats_file, "w") as f:
-        f.write("corpus lang train valid\n")
+    # TODO Decide what to do with stats tracking file
+    # stats_file = output_dir / f"stats_train_valid{args.suffix}.txt"
+    # with open(stats_file, "w") as f:
+    #     f.write("corpus lang train valid\n")
 
     with open(output_dir / f"training_args.json", "w") as train_args_json:
         json.dump(vars(args), train_args_json)

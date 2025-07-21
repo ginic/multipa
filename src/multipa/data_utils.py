@@ -258,14 +258,27 @@ class CorpusPreprocessor(ABC):
 class BuckeyePreprocessor(CorpusPreprocessor):
     dataset_name = "buckeye"
 
-
-
     def __init__(
-        data_dir,
-        cache_dir,
+        self,
+        data_dir: str | os.PathLike,
+        cache_dir: str | os.PathLike,
+        train_sampler: SimpleSampler,
+        val_sampler: SimpleSampler,
+        num_proc: int,
+        file_suffix: str,
+        min_length: float,
+        max_length: float,
+        speaker_restriction: None | list[str] = None,
+        percent_female: float = 0.5,
     ):
-        # TODO
-        pass
+        self.min_length = min_length
+        self.max_length = max_length
+        self.percent_female = percent_female
+        if speaker_restriction is None:
+            self.speaker_restriction = []
+        else:
+            self.speaker_restriction = speaker_restriction
+        super().__init__(BuckeyePreprocessor.dataset_name, data_dir, cache_dir, train_sampler, val_sampler, num_proc, file_suffix)
 
 
 class CommonVoicePreprocessor(CorpusPreprocessor):
@@ -276,18 +289,16 @@ class CommonVoicePreprocessor(CorpusPreprocessor):
 class LibriSpeechPreprocessor(CorpusPreprocessor):
     dataset_name = "librispeech_asr"
 
-    def __init__(self, data_dir: str | os.PathLike,
-        cache_dir: str | os.PathLike,
-        train_sampler: SimpleSampler | SubsetSampler,
-        val_sampler: SimpleSampler | SubsetSampler,
-        num_proc: int,
-        file_suffix: str,):
-        self.data_dir = data_dir
-        self.cache_dir = cache_dir
-        self.train_sampler = train_sampler
-        self.val_sampler = val_sampler
-        self.num_proc = num_proc
-        self.suffix = file_suffix
+    def __init__(
+            self,
+            data_dir: str | os.PathLike,
+            cache_dir: str | os.PathLike,
+            train_sampler: SimpleSampler,
+            val_sampler: SimpleSampler,
+            num_proc: int,
+            file_suffix: str,
+        ):
+        super().__init__(LibriSpeechPreprocessor.dataset_name, data_dir, cache_dir, train_sampler, val_sampler, num_proc, file_suffix)
 
     def _get_split(self, split_name, huggingface_split, sampler, json_filename):
         dataset = load_librispeech_split(
