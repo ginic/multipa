@@ -128,7 +128,7 @@ def load_dataset_by_corpus_and_language(corpus, language, cache_dir):
     return train, valid
 
 
-def resolve_filepath(basename: str, suffix: str, path_prefix: str):
+def resolve_filepath(basename: str, suffix: str, path_prefix: Path):
     """Resolve relative file path to by adding appropriate file suffix and path prefix
 
     Args:
