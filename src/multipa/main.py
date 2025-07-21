@@ -1,6 +1,5 @@
 import argparse
 import gc
-import importlib.resources
 import json
 import logging
 from pathlib import Path

@@ -353,6 +353,7 @@ class BuckeyePreprocessor(CorpusPreprocessor):
         "utterance_id",
         "text",
     ]
+    VOCAB_RESOURCE = "buckeye_ipa_inventory.txt"
 
     def __init__(
         self,
@@ -384,6 +385,7 @@ class BuckeyePreprocessor(CorpusPreprocessor):
             file_suffix,
             unused_columns=self.COLS_TO_DROP,
             is_remove_spaces=False,
+            vocab_resource_file=self.VOCAB_RESOURCE,
         )
 
     def _sample_gender_subset(self, dataset, num_samples: int, seed: int, gender_value: Literal["m", "f"]):
