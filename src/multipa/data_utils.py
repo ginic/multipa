@@ -1,10 +1,13 @@
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
+import logging
 import os
 from pathlib import Path
-from typing import Union
+from typing import Literal
 
 import datasets
+
+logger = logging.getLogger(__name__)
 
 # Constant corpus identifier options
 LIBRISPEECH_KEY = "librispeech"
@@ -21,8 +24,8 @@ class DataLoadError(Exception):
     pass
 
 
-def filter_low_quality(dataset):
-    dataset = dataset.filter(lambda batch: batch["down_votes"] == 0)
+def filter_low_quality(dataset, num_proc):
+    dataset = dataset.filter(lambda batch: batch["down_votes"] == 0, num_proc)
     return dataset
 
 
@@ -81,13 +84,24 @@ def validate_dataset_files_match(raw_data, ipa_data, key: str, is_check_basename
             raise DataLoadError(f"No match between IPA and raw data on '{key}'. IPA: {ipa_filename}, Raw: {filename}")
 
 
+def concatenate_common_voice(datasetlist: list):
+    """
+    Concatenate more than one datasets from Common Voice.
+    """
+    init_data = datasetlist[0]
+    for d in datasetlist:
+        assert d.features.type == init_data.features.type
+    concatenated = datasets.concatenate_datasets(datasetlist)
+    return concatenated
+
+
 def join_column(
     left_dataset,
     right_dataset,
     on_key: str,
     right_col: str,
     is_check_basename: bool = False,
-    additional_check_col: Union[str, None] = "sentence",
+    additional_check_col: str | None = "sentence",
 ):
     """Joins a column from the right dataset into the left.
 
@@ -118,9 +132,9 @@ def load_common_voice_split(
     quality_filter: bool,
     split: str,
     huggingface_split: str,
-    data_dir: str,
+    data_dir: str | os.PathLike,
     json_filename: str,
-    cache_dir: str,
+    cache_dir: str | os.PathLike,
     num_proc: int,
     dataset_name: str = "mozilla-foundation/common_voice_11_0",
 ):
@@ -151,10 +165,10 @@ def load_common_voice_split(
 
     # Remove Tamil sentences containing "ச"
     if language == "ta":
-        full_dataset = full_dataset.filter(lambda batch: "ச" not in batch["sentence"])
+        full_dataset = full_dataset.filter(lambda batch: "ச" not in batch["sentence"], num_proc=num_proc)
 
     if quality_filter:
-        full_dataset = filter_low_quality(full_dataset)
+        full_dataset = filter_low_quality(full_dataset, num_proc=num_proc)
 
     return full_dataset
 
@@ -194,7 +208,7 @@ def load_librispeech_split(
     return full_dataset
 
 
-def load_buckeye_split(corpus_root_dir: str, split: str):
+def load_buckeye_split(corpus_root_dir: str | os.PathLike, split: str):
     dataset_split = datasets.load_dataset("audiofolder", data_dir=corpus_root_dir, split=split)
     # Output data has duplicates despite following the format from HuggingFace documentation, so deduplicate based on utterance id
     deduplicated_df = dataset_split.to_pandas().drop_duplicates("utterance_id")
@@ -213,10 +227,9 @@ class SubsetSampler:
     num_samples: list[int]
     subset_identifiers: list[str]
 
-    def validate_lengths(self):
-        if not len(self.num_samples) == len(self.subset_identifiers):
+    def __post_init__(self):
+        if len(self.num_samples) != len(self.subset_identifiers):
             raise ValueError(f"Sampling argument must match length of {self.subset_identifiers}")
-        return True
 
 
 class CorpusPreprocessor(ABC):
@@ -278,27 +291,141 @@ class BuckeyePreprocessor(CorpusPreprocessor):
             self.speaker_restriction = []
         else:
             self.speaker_restriction = speaker_restriction
-        super().__init__(BuckeyePreprocessor.dataset_name, data_dir, cache_dir, train_sampler, val_sampler, num_proc, file_suffix)
+        super().__init__(
+            BuckeyePreprocessor.dataset_name, data_dir, cache_dir, train_sampler, val_sampler, num_proc, file_suffix
+        )
+
+    def _sample_gender_subset(self, dataset, num_samples: int, seed: int, gender_value: Literal["m", "f"]):
+        gender_examples = dataset.filter(lambda x: x["speaker_gender"] == gender_value, num_proc=self.num_proc)
+        gender_examples = gender_examples.shuffle(seed=seed).select(range(min(num_samples, len(gender_examples))))
+        logger.info("Number of examples from 'speaker_gender'='%s': %s", gender_value, len(gender_examples))
+        logger.info(
+            "Total duration(seconds) of examples from 'speaker_gender'='%s': %s",
+            gender_value,
+            sum(gender_examples["duration"]),
+        )
+
+        return gender_examples
+
+    def get_train_split(self):
+        train_data = load_buckeye_split(self.data_dir, "train")
+        # For Buckeye, it's important to remove examples that are too long/short first
+        # to maintain the specified gender split and restrictions to certain speakers
+
+        logger.info(
+            "Filtering Buckeye training data with sample duration >= %s, < %s", self.min_length, self.max_length
+        )
+        train_data = train_data.filter(lambda x: x["duration"] < self.max_length, num_proc=self.num_proc)
+        train_data = train_data.filter(lambda x: x["duration"] >= self.min_length, num_proc=self.num_proc)
+
+        # Handle restrictions to particular individuals
+        if self.speaker_restriction:
+            logger.info("Filtering Buckeye training to speaker ids %s", self.speaker_restriction)
+            train_data = train_data.filter(
+                lambda x: x["speaker_id"] in self.speaker_restriction, num_proc=self.num_proc
+            )
+
+        logger.info("Buckeye train dataset size after filtering by duration and speaker id: %s", len(train_data))
+
+        # Select equal numbers of examples matching the gender split
+        logger.info(
+            "Sampling Buckeye training data by gender split with %s ratio female speakers", self.percent_female
+        )
+        num_female_examples = int(self.train_sampler.num_samples * self.percent_female)
+        female_examples = self._sample_gender_subset(train_data, num_female_examples, self.train_sampler.seed, "f")
+
+        num_male_examples = self.train_sampler.num_samples - num_female_examples
+        male_examples = self._sample_gender_subset(train_data, num_male_examples, self.train_sampler.seed, "m")
+
+        full_train_data = datasets.concatenate_datasets([female_examples, male_examples])
+        logger.info("Full train dataset size: %s", len(full_train_data))
+
+        return full_train_data
+
+    def get_validation_split(self):
+        valid_data = load_buckeye_split(self.data_dir, "validation")
+        valid_limit = min(self.val_sampler.num_samples, len(valid_data))
+        # Shuffle because datasets are often ordered by speaker and you want a variety of speakers.
+        full_valid_data = valid_data.shuffle(seed=self.val_sampler.seed).select(range(valid_limit))
+        return full_valid_data
+
+    def create_vocab(self, train_dataset):
+        pass
 
 
 class CommonVoicePreprocessor(CorpusPreprocessor):
-    def __init__(dataset_name="mozilla-foundation/common_voice_11_0", quality_filter, ):
-        # TODO
-        pass
+    def __init__(
+        self,
+        data_dir: str | os.PathLike,
+        cache_dir: str | os.PathLike,
+        train_sampler: SubsetSampler,
+        val_sampler: SubsetSampler,
+        num_proc: int,
+        file_suffix: str,
+        dataset_name: str = "mozilla-foundation/common_voice_11_0",
+        quality_filter: bool = True,
+    ):
+        self.quality_filter = quality_filter
+        super().__init__(dataset_name, data_dir, cache_dir, train_sampler, val_sampler, num_proc, file_suffix)
+
+    def _get_split(self, split_name: str, huggingface_split: str, sampler: SubsetSampler):
+        data_list = []
+        for i, lang in enumerate(sampler.subset_identifiers):
+            num_samples = sampler.num_samples[i]
+            logger.info(
+                "Retrieving max %s samples for language '%s' from %s",
+                num_samples,
+                lang,
+                self.dataset_name,
+            )
+            data = load_common_voice_split(
+                lang,
+                self.quality_filter,
+                split_name,
+                huggingface_split,
+                self.data_dir,
+                f"{lang}_train{self.suffix}.json",
+                self.cache_dir,
+                self.num_proc,
+                self.dataset_name,
+            )
+            sample_limit = min(num_samples, len(data))
+            logger.info("Sampling %s examples for language '%s'", sample_limit, lang)
+            data = data.shuffle(seed=sampler.seed).select(range(sample_limit))
+            data_list.append(data)
+
+        logger.debug("Concatentating CommonVoice voice language subsets to final dataset")
+        full_data = concatenate_common_voice(data_list)
+        return full_data
+
+    def get_train_split(self):
+        return self._get_split("train", "train", self.train_sampler)
+
+    def get_validation_split(self):
+        return self._get_split("valid", "validation", self.val_sampler)
+
 
 class LibriSpeechPreprocessor(CorpusPreprocessor):
     dataset_name = "librispeech_asr"
 
     def __init__(
-            self,
-            data_dir: str | os.PathLike,
-            cache_dir: str | os.PathLike,
-            train_sampler: SimpleSampler,
-            val_sampler: SimpleSampler,
-            num_proc: int,
-            file_suffix: str,
-        ):
-        super().__init__(LibriSpeechPreprocessor.dataset_name, data_dir, cache_dir, train_sampler, val_sampler, num_proc, file_suffix)
+        self,
+        data_dir: str | os.PathLike,
+        cache_dir: str | os.PathLike,
+        train_sampler: SimpleSampler,
+        val_sampler: SimpleSampler,
+        num_proc: int,
+        file_suffix: str,
+    ):
+        super().__init__(
+            LibriSpeechPreprocessor.dataset_name,
+            data_dir,
+            cache_dir,
+            train_sampler,
+            val_sampler,
+            num_proc,
+            file_suffix,
+        )
 
     def _get_split(self, split_name, huggingface_split, sampler, json_filename):
         dataset = load_librispeech_split(
@@ -308,20 +435,13 @@ class LibriSpeechPreprocessor(CorpusPreprocessor):
             json_filename,
             self.cache_dir,
             self.num_proc,
-            self.dataset_name
+            self.dataset_name,
         )
         limit = min(sampler.num_samples, len(dataset))
-        return dataset.shuffle(seed = sampler.seed).select(range(limit))
+        return dataset.shuffle(seed=sampler.seed).select(range(limit))
 
     def get_train_split(self):
-        return self._get_split("train",
-            "train.clean.100",
-            self.train_sampler,
-            f"en_train{self.suffix}.json")
+        return self._get_split("train", "train.clean.100", self.train_sampler, f"en_train{self.suffix}.json")
 
     def get_validation_split(self):
-        return self._get_split("valid",
-            "validation.clean",
-            self.val_sampler,
-            f"en_valid{self.suffix}.json")
-
+        return self._get_split("valid", "validation.clean", self.val_sampler, f"en_valid{self.suffix}.json")

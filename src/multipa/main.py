@@ -2,12 +2,14 @@ import argparse
 import gc
 import importlib.resources
 import json
+import logging
 from pathlib import Path
+import sys
 from typing import Dict, List, Optional, Union
 import warnings
 
 from dataclasses import dataclass
-from datasets import Audio, concatenate_datasets
+from datasets import Audio
 import evaluate
 import numpy as np
 from transformers import (
@@ -27,12 +29,14 @@ from multipa.data_utils import (
     COMMONVOICE_KEY,
     LIBRISPEECH_KEY,
     clean_text,
-    load_buckeye_split,
-    load_common_voice_split,
     LibriSpeechPreprocessor,
+    BuckeyePreprocessor,
+    CommonVoicePreprocessor,
     SimpleSampler,
     SubsetSampler,
 )
+
+logger = logging.getLogger(__name__)
 
 # Transformers gives a lot of warnings and it's hard to check training progress, so only print them once
 warnings.filterwarnings("ignore", category=UserWarning)
@@ -144,19 +148,6 @@ def remove_long_data(dataset, max_seconds=12):
     # directly remove do not wait for gc
     del dftest
     return dataset
-
-
-def concatenate_common_voice(datasetlist: list):
-    """
-    Concatenate more than one datasets from Common Voice.
-    Also consider using datasets.interleave_datasets(datasets: List[DatasetType]
-    so that the new dataset is constructed by cycling between each source to get the examples.
-    """
-    init_data = datasetlist[0]
-    for d in datasetlist:
-        assert d.features.type == init_data.features.type
-    concatenated = concatenate_datasets(datasetlist)
-    return concatenated
 
 
 def create_vocabulary(*datasets, use_resource_vocab=True):
@@ -450,20 +441,7 @@ def main_cli():
     output_dir = Path(args.output_dir)
     output_dir.mkdir(parents=True, exist_ok=True)
 
-    # Set up corpus stats tracking file
-    # TODO Decide what to do with stats tracking file
-    # stats_file = output_dir / f"stats_train_valid{args.suffix}.txt"
-    # with open(stats_file, "w") as f:
-    #     f.write("corpus lang train valid\n")
-
-    with open(output_dir / f"training_args.json", "w") as train_args_json:
-        json.dump(vars(args), train_args_json)
-
-    final_results_to_write = {}
-
-    # Librispeech and CommonVoice rely on
-    is_remove_space_during_preprocessing = True
-
+    logger.info("Loading corpus: %s", args.corpus)
     if args.corpus == LIBRISPEECH_KEY:
         train_sampler = SimpleSampler(args.train_seed, args.train_samples)
         val_sampler = SimpleSampler(args.val_seed, args.val_samples)
@@ -476,115 +454,34 @@ def main_cli():
             num_proc=args.num_proc,
         )
 
-        # TODO Decide what to do about stats
-        # with open(stats_file, "a") as f:
-        #    f.write(f"{dataset_name} en {len(full_train_data)} {len#(full_valid_data)}\n")
-
     elif args.corpus == BUCKEYE_KEY:
-        dataset_name = "buckeye"
-        train_data = load_buckeye_split(args.data_dir, "train")
-
-        # For Buckeye, it's important to remove examples that are too long/short first
-        # to maintain the specified gender split and restrictions to certain speakers
-        train_data = train_data.filter(lambda x: x["duration"] < args.max_length)
-        train_data = train_data.filter(lambda x: x["duration"] >= args.min_length)
-
-        # Handle restrictions to particular individuals
-        if args.speaker_restriction:
-            train_data = train_data.filter(lambda x: x["speaker_id"] in args.speaker_restriction)
-
-        print("Sampling from Buckeye train dataset with length after filtering:", len(train_data))
-
-        # Select equal numbers of examples matching the gender split
-        num_female_examples = int(args.train_samples * args.percent_female)
-        female_examples = train_data.filter(lambda x: x["speaker_gender"] == "f")
-        female_examples = female_examples.shuffle(seed=args.train_seed).select(
-            range(min(num_female_examples, len(female_examples)))
+        train_sampler = SimpleSampler(args.train_seed, args.train_samples)
+        val_sampler = SimpleSampler(args.val_seed, args.val_samples)
+        corpus_processor = BuckeyePreprocessor(
+            cache_dir=args.cache_dir,
+            data_dir=args.data_dir,
+            train_sampler=train_sampler,
+            val_sampler=val_sampler,
+            file_suffix=args.suffix,
+            num_proc=args.num_proc,
+            min_length=args.min_length,
+            max_length=args.max_length,
+            speaker_restriction=args.speaker_restriction,
+            percent_female=args.percent_female,
         )
-        final_results_to_write["train_num_female_examples"] = len(female_examples)
-        final_results_to_write["train_duration_female_examples"] = sum(female_examples["duration"])
-        print("Number of examples from female speakers:", final_results_to_write["train_num_female_examples"])
-        print(
-            "Total duration (seconds) of examples from female speakers :",
-            final_results_to_write["train_duration_female_examples"],
-        )
-
-        num_male_examples = args.train_samples - num_female_examples
-        male_examples = train_data.filter(lambda x: x["speaker_gender"] == "m")
-        male_examples = male_examples.shuffle(seed=args.train_seed).select(
-            range(min(num_male_examples, len(male_examples)))
-        )
-        final_results_to_write["train_num_male_examples"] = len(male_examples)
-        final_results_to_write["train_duration_male_examples"] = sum(male_examples["duration"])
-        print("Number of examples from male speakers:", final_results_to_write["train_num_male_examples"])
-        print(
-            "Total duration (seconds) of examples from male speakers :",
-            final_results_to_write["train_duration_male_examples"],
-        )
-
-        full_train_data = concatenate_datasets([female_examples, male_examples])
-        print("Full train dataset size:", len(full_train_data))
-
-        valid_data = load_buckeye_split(args.data_dir, "validation")
-        valid_limit = min(args.val_samples, len(valid_data))
-        # Shuffle because datasets are often ordered by speaker and you want a variety of speakers.
-        full_valid_data = valid_data.shuffle(seed=args.val_seed).select(range(valid_limit))
-
-        with open(stats_file, "a") as f:
-            f.write(f"{dataset_name} en {len(full_train_data)} {len(full_valid_data)}\n")
 
     elif args.corpus == COMMONVOICE_KEY:
-        lgx = args.languages
-        assert len(args.train_samples) <= len(lgx), "`train_samples` argument is longer than the number of languages"
-        assert len(args.val_samples) <= len(lgx), "`val_samples` argument is longer than the number of languages"
-
-        train_list = []
-        valid_list = []
-        dataset_name = "mozilla-foundation/common_voice_11_0"
-        for i, lang in enumerate(lgx):
-            train_sample = args.train_samples[i]
-            valid_sample = args.val_samples[i]
-            train_data = load_common_voice_split(
-                lang,
-                args.quality_filter,
-                "train",
-                "train",
-                args.data_dir,
-                f"{lang}_train{args.suffix}.json",
-                args.cache_dir,
-                args.num_proc,
-                dataset_name,
-            )
-            valid_data = load_common_voice_split(
-                lang,
-                args.quality_filter,
-                "valid",
-                "validation",
-                args.data_dir,
-                f"{lang}_valid{args.suffix}.json",
-                args.cache_dir,
-                args.num_proc,
-                dataset_name,
-            )
-
-            # Shuffle and clip to the specified sample size using datasets's Dataset.select().
-            # Shuffle because datasets are often ordered by speaker and you want a variety of speakers.
-            train_limit = min(train_sample, len(train_data))
-            valid_limit = min(valid_sample, len(valid_data))
-            train_data = train_data.shuffle(seed=args.train_seed).select(range(train_limit))
-            valid_data = valid_data.shuffle(seed=args.val_seed).select(range(valid_limit))
-
-            train_list.append(train_data)
-            valid_list.append(valid_data)
-
-            with open(stats_file, "a") as f:
-                f.write(f"{dataset_name} {lang} {len(train_data)} {len(valid_data)}\n")
-
-        # Concatenate the languages
-        print("Concatenating datasets for each language...")
-        full_train_data = concatenate_common_voice(train_list)
-        full_valid_data = concatenate_common_voice(valid_list)
-        print("Concatenation done")
+        train_sampler = SubsetSampler(args.train_seed, args.train_samples, args.languages)
+        val_sampler = SubsetSampler(args.val_seed, args.val_samples, args.languages)
+        corpus_processor = CommonVoicePreprocessor(
+            cache_dir=args.cache_dir,
+            data_dir=args.data_dir,
+            train_sampler=train_sampler,
+            val_sampler=val_sampler,
+            file_suffix=args.suffix,
+            num_proc=args.num_proc,
+            quality_filter=args.quality_filter,
+        )
 
     # This doesn't work right now and we don't have access to the Forvo data, so I'm commenting out
     # if args.additional_data:
@@ -816,4 +713,7 @@ def main_cli():
 
 
 if __name__ == "__main__":
+    logging.basicConfig(
+        level=logging.DEBUG, stream=sys.stdout, format="%(levelname)s : %(asctime)s : %(name)s : %(message)s"
+    )
     main_cli()
