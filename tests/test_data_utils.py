@@ -39,6 +39,18 @@ def common_voice_preprocessor():
 
 
 @pytest.fixture(scope="session")
+def librispeech_preprocessor():
+    return LibriSpeechPreprocessor(
+        data_dir=None,
+        cache_dir=None,
+        train_sampler=SimpleSampler(10, 6),
+        val_sampler=SimpleSampler(99, 4),
+        num_proc=1,
+        file_suffix="librispeech",
+    )
+
+
+@pytest.fixture(scope="session")
 def mock_librispeech():
     mock_dict = {
         "audio": [{}] * 5,
@@ -46,7 +58,7 @@ def mock_librispeech():
         "id": ["9876"] * 5,
         "speaker_id": [9876] * 5,
         "text": ["THIS IS A TEST"] * 5,
-        "ipa": ["ðɪsɪzətɛst"] * 5,
+        "ipa": ["ðɪs ɪz ə tɛst"] * 5,
     }
     return datasets.Dataset.from_dict(mock_dict)
 
@@ -197,6 +209,22 @@ def test_commonvoice_build_vocab(common_voice_preprocessor, mock_common_voice):
     assert len(vocab) == 294
     assert vocab["[UNK]"] == 292
     assert vocab["[PAD]"] == 293
+
+
+def test_librispeech_clean_ipa(librispeech_preprocessor, mock_librispeech):
+    output_data = librispeech_preprocessor.clean_ipa_transcription(mock_librispeech)
+    clean_ipa = output_data.to_dict()["ipa"]
+    # Spaces are NOT removed
+    assert clean_ipa == ["ðɪs ɪz ə tɛst"] * 5
+
+
+def test_librispeech_build_vocab(librispeech_preprocessor, mock_librispeech):
+    vocab = librispeech_preprocessor.create_vocabulary(mock_librispeech)
+    # There are 292 symbols in the vocab from full_vocab_ipa.txt plus padding and unknown
+    # Additionally, spaces are NOT removed, so " " appears in vocab
+    assert len(vocab) == 295
+    assert vocab["[UNK]"] == 293
+    assert vocab["[PAD]"] == 294
 
 
 def test_commonvoice_clean_ipa(common_voice_preprocessor, mock_common_voice):
