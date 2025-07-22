@@ -270,6 +270,7 @@ class CorpusPreprocessor(ABC):
         self.is_remove_spaces = is_remove_spaces
         self.vocab_resource_file = vocab_resource_file
         self.is_whitespace_delimited = is_whitespace_delimited
+        self._latest_training_data_stats = {}
 
     @abstractmethod
     def get_train_split(self) -> datasets.Dataset:
@@ -348,6 +349,9 @@ class CorpusPreprocessor(ABC):
             return dataset.remove_columns(cols_to_remove)
         return dataset
 
+    def get_latest_training_dataset_stats(self):
+        return self._latest_training_data_stats
+
 
 class BuckeyePreprocessor(CorpusPreprocessor):
     DATASET_NAME = "buckeye"
@@ -418,6 +422,15 @@ class BuckeyePreprocessor(CorpusPreprocessor):
         - Filtering data that doesn't match speaker restrictions
         - Filtering samples to match the desired gender makeup of the training set
         """
+        # Clear stats from training data tracker
+        for key in [
+            "train_num_female_examples",
+            "train_duration_female_examples",
+            "train_num_male_examples",
+            "train_duration_male_examples",
+        ]:
+            self._latest_training_data_stats.pop(key, None)
+
         logger.info(
             "Filtering Buckeye training data with sample duration >= %s, < %s", self.min_length, self.max_length
         )
@@ -440,8 +453,14 @@ class BuckeyePreprocessor(CorpusPreprocessor):
         num_female_examples = int(self.train_sampler.num_samples * self.percent_female)
         female_examples = self._sample_gender_subset(filtered_data, num_female_examples, self.train_sampler.seed, "f")
 
+        self._latest_training_data_stats["train_num_female_examples"] = len(female_examples)
+        self._latest_training_data_stats["train_duration_female_examples"] = sum(female_examples["duration"])
+
         num_male_examples = self.train_sampler.num_samples - num_female_examples
         male_examples = self._sample_gender_subset(filtered_data, num_male_examples, self.train_sampler.seed, "m")
+
+        self._latest_training_data_stats["train_num_male_examples"] = len(male_examples)
+        self._latest_training_data_stats["train_duration_male_examples"] = sum(male_examples["duration"])
 
         full_train_data = datasets.concatenate_datasets([female_examples, male_examples])
         logger.info("Full train dataset size: %s", len(full_train_data))

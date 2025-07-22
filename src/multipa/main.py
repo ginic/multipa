@@ -3,7 +3,6 @@ import gc
 import json
 import logging
 from pathlib import Path
-import sys
 from typing import Dict, List, Optional, Union
 import warnings
 
@@ -409,6 +408,7 @@ def main_cli():
     output_dir = Path(args.output_dir)
     output_dir.mkdir(parents=True, exist_ok=True)
 
+    final_results_to_write = {}
     logger.info("Loading corpus: %s", args.corpus)
     if args.corpus == LIBRISPEECH_KEY:
         train_sampler = SimpleSampler(args.train_seed, args.train_samples)
@@ -465,6 +465,9 @@ def main_cli():
     # Remove unnecessary columns - have to do this using remove_columns because select_columns wasn't available in older HF versions
     full_train_data = corpus_processor.get_train_split()
     full_valid_data = corpus_processor.get_validation_split()
+
+    # Add any stats about training data to the final report
+    final_results_to_write.update(corpus_processor.get_latest_training_dataset_stats())
 
     print("Data selection complete. Data preview:")
     print(full_train_data[0])
@@ -652,7 +655,5 @@ def main_cli():
 
 
 if __name__ == "__main__":
-    logging.basicConfig(
-        level=logging.DEBUG, stream=sys.stdout, format="%(levelname)s : %(asctime)s : %(name)s : %(message)s"
-    )
+    logging.basicConfig(level=logging.DEBUG, format="%(levelname)s : %(asctime)s : %(name)s : %(message)s")
     main_cli()
