@@ -144,6 +144,9 @@ def test_buckeye_sample_gender(percent_f, expected_f, expected_m, mock_buckeye):
     sampled = buckeye_preprocessor._filter_train_dataset(mock_buckeye)
     assert len(sampled.filter(lambda x: x["speaker_gender"] == "f")) == expected_f
     assert len(sampled.filter(lambda x: x["speaker_gender"] == "m")) == expected_m
+    training_stats = buckeye_preprocessor.get_latest_training_dataset_stats()
+    assert training_stats["train_num_female_examples"] == expected_f
+    assert training_stats["train_num_male_examples"] == expected_m
 
 
 def test_buckeye_build_vocab(mock_buckeye, buckeye_preprocessor):
