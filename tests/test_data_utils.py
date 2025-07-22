@@ -1,17 +1,16 @@
 import datasets
+import pytest
 
 from multipa.data_utils import (
     clean_text,
+    extract_all_chars_ipa,
+    extract_whitespace_delimited_symbols,
     BuckeyePreprocessor,
     CommonVoicePreprocessor,
     LibriSpeechPreprocessor,
     SimpleSampler,
+    SubsetSampler,
 )
-
-
-import pytest
-
-from datasets import Dataset
 
 
 @pytest.fixture(scope="session")
@@ -27,6 +26,19 @@ def buckeye_preprocessor():
 
 
 @pytest.fixture(scope="session")
+def common_voice_preprocessor():
+    return CommonVoicePreprocessor(
+        data_dir=None,
+        cache_dir=None,
+        train_sampler=SubsetSampler(42, [2, 4], ["en", "pl"]),
+        val_sampler=SubsetSampler(99, [1, 1], ["en", "pl"]),
+        num_proc=1,
+        file_suffix="cv",
+        is_remove_spaces=True,
+    )
+
+
+@pytest.fixture(scope="session")
 def mock_librispeech():
     mock_dict = {
         "audio": [{}] * 5,
@@ -36,22 +48,22 @@ def mock_librispeech():
         "text": ["THIS IS A TEST"] * 5,
         "ipa": ["ðɪsɪzətɛst"] * 5,
     }
-    return Dataset.from_dict(mock_dict)
+    return datasets.Dataset.from_dict(mock_dict)
 
 
 @pytest.fixture(scope="session")
 def mock_common_voice():
     mock_dict = {
-        "audio": [{}] * 5,
-        "locale": ["en"] * 5,
-        "sentence": ["This is a test"] * 5,
-        "ipa": ["ðɪsɪzətɛst"] * 5,
-        "age": ["teens", "twenties", "thirties", "forties", "fifties"],
-        "gender": ["male", "female", "male", "female", "male"],
-        "down_votes": [0, 0, 0, 4, 5],
-        "up_votes": [1, 3, 2, 0, 1],
+        "audio": [{}] * 10,
+        "locale": ["en"] * 5 + ["pl"] * 5,
+        "sentence": ["This is a test"] * 5 + ["żaba"] * 5,
+        "ipa": ["ðɪs ɪz ə tɛst"] * 5 + ["ʐ a b a"] * 5,
+        "age": ["teens", "twenties", "thirties", "forties", "fifties"] * 2,
+        "gender": ["male", "female", "male", "female", "male"] * 2,
+        "down_votes": [0, 0, 0, 4, 5] * 2,
+        "up_votes": [1, 3, 2, 0, 1] * 2,
     }
-    return Dataset.from_dict(mock_dict)
+    return datasets.Dataset.from_dict(mock_dict)
 
 
 @pytest.fixture(scope="session")
@@ -66,7 +78,7 @@ def mock_buckeye():
         "speaker_gender": ["m"] * 6 + ["f"] * 6,
         "speaker_age_range": ["y", "o"] * 6,
     }
-    return Dataset.from_dict(mock_dict)
+    return datasets.Dataset.from_dict(mock_dict)
 
 
 def test_clean_text_dataset():
@@ -120,3 +132,107 @@ def test_buckeye_sample_gender(percent_f, expected_f, expected_m, mock_buckeye):
     sampled = buckeye_preprocessor._filter_train_dataset(mock_buckeye)
     assert len(sampled.filter(lambda x: x["speaker_gender"] == "f")) == expected_f
     assert len(sampled.filter(lambda x: x["speaker_gender"] == "m")) == expected_m
+
+
+def test_buckeye_build_vocab(mock_buckeye, buckeye_preprocessor):
+    # all symbols from the dataset are in the vocab already
+    vocab = buckeye_preprocessor.create_vocabulary(mock_buckeye)
+    # There are 62 symbols in the vocab from buckeye_ipa_inventory.txt plus padding and unknown
+    assert len(vocab) == 64
+    assert vocab["[UNK]"] == 62
+    assert vocab["[PAD]"] == 63
+
+
+def test_buckeye_build_vocab_extra_symbol(buckeye_preprocessor):
+    # There two new symbols (ʐ, a) in the training data. Do they get added to the vocab?
+    data = datasets.Dataset.from_dict({"ipa": ["ð ɪ s ɪ z ə t ɛ s t", "ʐ a b a"]})
+    vocab = buckeye_preprocessor.create_vocabulary(data)
+    assert len(vocab) == 66
+
+
+def test_buckeye_clean_ipa(buckeye_preprocessor):
+    buckeye_dict = {
+        "utterance_id": [1, 2, 3, 4],
+        "duration": [0.09, 1.1, 2.2, 3.3],
+        "buckey_transcript": [
+            "DH IH S IH Z AH T EH1 S T",
+            "U U",
+            None,
+            "dh ae tq",
+        ],
+        "text": [
+            "this is a test",
+            "VOCNOISE VOCNOISE",
+            None,
+            "that",
+        ],
+        "ipa": [
+            "ð ɪ s ɪ z ə t ɛ s t",
+            "",
+            None,
+            "ð æ ʔ",
+        ],
+        "speaker_id": [f"S{i:02d}" for i in range(1, 5)],
+        "speaker_gender": ["m"] * 4,
+        "speaker_age_range": ["y", "o"] * 2,
+    }
+    expected_ipa = [
+        "ð ɪ s ɪ z ə t ɛ s t",
+        "",
+        "",
+        "ð æ ʔ",
+    ]
+
+    hf_dataset = datasets.Dataset.from_dict(buckeye_dict)
+    clean_dataset = buckeye_preprocessor.clean_ipa_transcription(hf_dataset)
+    output_dict = clean_dataset.to_dict()
+    assert output_dict.keys() == buckeye_dict.keys()
+    assert output_dict["ipa"] == expected_ipa
+
+
+def test_commonvoice_build_vocab(common_voice_preprocessor, mock_common_voice):
+    # all symbols from the dataset are in the vocab already
+    vocab = common_voice_preprocessor.create_vocabulary(mock_common_voice)
+    # There are 292 symbols in the vocab from full_vocab_ipa.txt plus padding and unknown
+    assert len(vocab) == 294
+    assert vocab["[UNK]"] == 292
+    assert vocab["[PAD]"] == 293
+
+
+def test_commonvoice_clean_ipa(common_voice_preprocessor, mock_common_voice):
+    cleaned_data = common_voice_preprocessor.clean_ipa_transcription(mock_common_voice)
+    clean_ipa_out = cleaned_data.to_dict()["ipa"]
+    expected_cleaned_ipa = ["ðɪsɪzətɛst"] * 5 + ["ʐaba"] * 5
+    assert clean_ipa_out == expected_cleaned_ipa
+
+
+def test_extract_all_chars_ipa():
+    batch = {"ipa": ["dʒ ŋ͡m cʼ ɹ̩"]}
+    expected_vocab = set(["d", "ʒ", "͡", "ŋ", "m", "c", "ʼ", "ɹ", "̩", " "])
+    vocab = extract_all_chars_ipa(batch)
+    assert len(vocab["vocab"]) == len(expected_vocab)
+    assert set(vocab["vocab"]) == expected_vocab
+
+
+def text_extract_all_chars_ipa_batched():
+    dataset = datasets.Dataset.from_dict({"ipa": ["dʒc", "ŋ͡m ", "cʼ ", "ɹ̩d"]})
+    vocab = dataset.map(extract_all_chars_ipa, batched=True, remove_columns=["ipa"])
+    expected_vocab = set(["d", "ʒ", "͡", "ŋ", "m", "c", "ʼ", "ɹ", "̩", " "])
+    assert len(vocab["vocab"]) == len(expected_vocab)
+    assert set(vocab["vocab"]) == expected_vocab
+
+
+def test_whitespace_delimited_symbols():
+    batch = {"ipa": ["dʒ ŋ͡m cʼ ɹ̩"]}
+    expected_vocab = set(["dʒ", "ŋ͡m", "cʼ", "ɹ̩"])
+    vocab = extract_whitespace_delimited_symbols(batch)
+    assert len(vocab["vocab"]) == len(expected_vocab)
+    assert set(vocab["vocab"]) == expected_vocab
+
+
+def test_whitespace_delimited_symbols_batched():
+    dataset = datasets.Dataset.from_dict({"ipa": ["dʒ c", "ŋ͡m", "cʼ ", "ɹ̩ d", "d\tc"]})
+    vocab = dataset.map(extract_whitespace_delimited_symbols, batched=True, remove_columns=["ipa"])
+    expected_vocab = set(["d", "dʒ", "ŋ͡m", "c", "cʼ", "ɹ̩"])
+    assert len(vocab["vocab"]) == len(expected_vocab)
+    assert set(vocab["vocab"]) == expected_vocab

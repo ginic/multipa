@@ -257,6 +257,7 @@ class CorpusPreprocessor(ABC):
         unused_columns: None | list[str] = None,
         is_remove_spaces: bool = False,
         vocab_resource_file: None | str = None,
+        is_whitespace_delimited: bool = False,
     ):
         self.dataset_name = dataset_name
         self.data_dir = data_dir
@@ -268,6 +269,7 @@ class CorpusPreprocessor(ABC):
         self.unused_columns = unused_columns
         self.is_remove_spaces = is_remove_spaces
         self.vocab_resource_file = vocab_resource_file
+        self.is_whitespace_delimited = is_whitespace_delimited
 
     @abstractmethod
     def get_train_split(self) -> datasets.Dataset:
@@ -293,7 +295,7 @@ class CorpusPreprocessor(ABC):
             dict[str, int]: symbol to index dictionary expected by HuggingFace
         """
         final_vocab = set()
-        if self.is_remove_spaces:
+        if not self.is_whitespace_delimited:
             token_func = extract_all_chars_ipa
         else:
             token_func = extract_whitespace_delimited_symbols
@@ -302,7 +304,7 @@ class CorpusPreprocessor(ABC):
                 token_func,
                 batched=True,
                 keep_in_memory=True,
-                remove_columns=d.column_names,
+                remove_columns=d.column_names,  # Must remove other columns because vocab is different length from input dataset
                 num_proc=self.num_proc,
             )
             final_vocab = final_vocab | set(d_vocab["vocab"])
@@ -327,6 +329,11 @@ class CorpusPreprocessor(ABC):
                 )
 
             final_vocab = final_vocab | vocab_from_file
+
+        # If you don't want whitespace in the output or the data is whitespace delimited
+        # remove spaces from the vocabulary
+        if self.is_remove_spaces or self.is_whitespace_delimited:
+            final_vocab = filter(lambda v: not v.isspace(), final_vocab)
 
         vocab_dict_ipa = {v: k for k, v in enumerate(final_vocab)}
         vocab_dict_ipa[UNKNOWN_TOKEN] = len(vocab_dict_ipa)
@@ -386,6 +393,7 @@ class BuckeyePreprocessor(CorpusPreprocessor):
             unused_columns=self.COLS_TO_DROP,
             is_remove_spaces=False,
             vocab_resource_file=self.VOCAB_RESOURCE,
+            is_whitespace_delimited=True,
         )
 
     def _sample_gender_subset(self, dataset, num_samples: int, seed: int, gender_value: Literal["m", "f"]):
@@ -441,9 +449,8 @@ class BuckeyePreprocessor(CorpusPreprocessor):
 
     def get_train_split(self):
         train_data = load_buckeye_split(self.data_dir, "train")
-
         full_train_data = self._filter_train_dataset(train_data)
-
+        full_train_data = self.clean_ipa_transcription(full_train_data)
         return self.remove_unused_columns(full_train_data)
 
     def get_validation_split(self) -> datasets.Dataset:
@@ -451,6 +458,7 @@ class BuckeyePreprocessor(CorpusPreprocessor):
         valid_limit = min(self.val_sampler.num_samples, len(valid_data))
         # Shuffle because datasets are often ordered by speaker and you want a variety of speakers.
         full_valid_data = valid_data.shuffle(seed=self.val_sampler.seed).select(range(valid_limit))
+        full_valid_data = self.clean_ipa_transcription(full_valid_data)
         return self.remove_unused_columns(full_valid_data)
 
 
@@ -477,6 +485,7 @@ class CommonVoicePreprocessor(CorpusPreprocessor):
         file_suffix: str,
         dataset_name: str = "mozilla-foundation/common_voice_11_0",
         quality_filter: bool = True,
+        is_remove_spaces: bool = False,
     ):
         self.quality_filter = quality_filter
         super().__init__(
@@ -489,6 +498,7 @@ class CommonVoicePreprocessor(CorpusPreprocessor):
             file_suffix,
             unused_columns=self.COLS_TO_DROP,
             vocab_resource_file=self.VOCAB_RESOURCE,
+            is_remove_spaces=is_remove_spaces,
         )
 
     def _get_split(self, split_name: str, huggingface_split: str, sampler: SubsetSampler):
@@ -522,10 +532,10 @@ class CommonVoicePreprocessor(CorpusPreprocessor):
         return self.remove_unused_columns(full_data)
 
     def get_train_split(self):
-        return self._get_split("train", "train", self.train_sampler)
+        return self.clean_ipa_transcription(self._get_split("train", "train", self.train_sampler))
 
     def get_validation_split(self):
-        return self._get_split("valid", "validation", self.val_sampler)
+        return self.clean_ipa_transcription(self._get_split("valid", "validation", self.val_sampler))
 
 
 class LibriSpeechPreprocessor(CorpusPreprocessor):
@@ -545,6 +555,7 @@ class LibriSpeechPreprocessor(CorpusPreprocessor):
         val_sampler: SimpleSampler,
         num_proc: int,
         file_suffix: str,
+        is_remove_spaces: bool = False,
     ):
         super().__init__(
             LibriSpeechPreprocessor.DATASET_NAME,
@@ -556,6 +567,7 @@ class LibriSpeechPreprocessor(CorpusPreprocessor):
             file_suffix,
             unused_columns=self.COLS_TO_DROP,
             vocab_resource_file=self.VOCAB_RESOURCE,
+            is_remove_spaces=is_remove_spaces,
         )
 
     def _get_split(self, split_name, huggingface_split, sampler, json_filename):
@@ -573,7 +585,9 @@ class LibriSpeechPreprocessor(CorpusPreprocessor):
         return self.remove_unused_columns(dataset)
 
     def get_train_split(self):
-        return self._get_split("train", "train.clean.100", self.train_sampler, f"en_train{self.suffix}.json")
+        train_data = self._get_split("train", "train.clean.100", self.train_sampler, f"en_train{self.suffix}.json")
+        return self.clean_ipa_transcription(train_data)
 
     def get_validation_split(self):
-        return self._get_split("valid", "validation.clean", self.val_sampler, f"en_valid{self.suffix}.json")
+        val_data = self._get_split("valid", "validation.clean", self.val_sampler, f"en_valid{self.suffix}.json")
+        return self.clean_ipa_transcription(val_data)

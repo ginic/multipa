@@ -27,7 +27,6 @@ from multipa.data_utils import (
     BUCKEYE_KEY,
     COMMONVOICE_KEY,
     LIBRISPEECH_KEY,
-    clean_text,
     LibriSpeechPreprocessor,
     BuckeyePreprocessor,
     CommonVoicePreprocessor,
@@ -303,6 +302,9 @@ def main_cli():
         COMMONVOICE_KEY, help="Use the Common Voice corpus version 11 from the Huggingface data repo."
     )
     comm_voice_subparser.add_argument(
+        "-ns", "--no_space", action="store_true", help="Use this flag remove spaces in IPA transcription."
+    )
+    comm_voice_subparser.add_argument(
         "-l",
         "--languages",
         nargs="+",
@@ -355,6 +357,9 @@ def main_cli():
         type=int,
         help="Specify the number of samples to be used as the test data. "
         "You can type an irrationally large number to pick up the maximum value.",
+    )
+    librispeech_subparser.add_argument(
+        "-ns", "--no_space", action="store_true", help="Use this flag remove spaces in IPA transcription."
     )
 
     buckeye_subparser = subparsers.add_parser(
@@ -415,6 +420,7 @@ def main_cli():
             val_sampler=val_sampler,
             file_suffix=args.suffix,
             num_proc=args.num_proc,
+            is_remove_spaces=args.no_space,
         )
 
     elif args.corpus == BUCKEYE_KEY:
@@ -444,6 +450,7 @@ def main_cli():
             file_suffix=args.suffix,
             num_proc=args.num_proc,
             quality_filter=args.quality_filter,
+            is_remove_spaces=args.no_space,
         )
 
     # This doesn't work right now and we don't have access to the Forvo data, so I'm commenting out
@@ -462,9 +469,6 @@ def main_cli():
     print("Data selection complete. Data preview:")
     print(full_train_data[0])
     assert full_train_data.features.type == full_valid_data.features.type
-
-    full_train_data = corpus_processor.clean_ipa_transcription(full_train_data)
-    full_valid_data = corpus_processor.clean_ipa_transcription(full_valid_data)
 
     # Preprocessing
     print("Creating vocabulary...")
