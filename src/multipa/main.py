@@ -189,6 +189,7 @@ def is_valid_post_tokenization(batch):
     )
 
 def main_cli():
+    logging.basicConfig(level=logging.INFO, format="%(levelname)s : %(asctime)s : %(name)s : %(message)s")
     parser = argparse.ArgumentParser(
         description="Trains the speech recognition model. Specify corpus, "
         "model training parameters and language details if needed. "
@@ -655,5 +656,4 @@ def main_cli():
 
 
 if __name__ == "__main__":
-    logging.basicConfig(level=logging.DEBUG, format="%(levelname)s : %(asctime)s : %(name)s : %(message)s")
     main_cli()

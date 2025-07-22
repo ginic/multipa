@@ -345,7 +345,7 @@ class CorpusPreprocessor(ABC):
         """Returns the dataset dropping any columns not used by the CorpusPreprocessor"""
         if self.unused_columns is not None:
             cols_to_remove = list(set(self.unused_columns).intersection(dataset.column_names))
-            logger.debug("Removing unnecessary columns: %s", cols_to_remove)
+            logger.info("Removing unnecessary columns: %s", cols_to_remove)
             return dataset.remove_columns(cols_to_remove)
         return dataset
 
