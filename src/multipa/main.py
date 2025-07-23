@@ -512,8 +512,7 @@ def main_cli():
     print("Checking that the post-tokenization data is valid...")
     full_train_data = full_train_data.filter(is_valid_post_tokenization, num_proc = args.num_proc)
     full_valid_data = full_valid_data.filter(is_valid_post_tokenization, num_proc = args.num_proc)
-    print("Validation done. Data preview:")
-    print(full_train_data[0])
+    print("Validation done.")
 
     print(f"Removing audio files longer than {args.max_length} secs...")
     full_train_data = remove_long_data(full_train_data, args.max_length)
