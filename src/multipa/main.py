@@ -490,8 +490,8 @@ def main_cli():
 
     # Final filter to check that the samples are valid
     print("Filtering the dataset to remove invalid samples...")
-    full_train_data = full_train_data.filter(is_valid_sample)
-    full_valid_data = full_valid_data.filter(is_valid_sample)
+    full_train_data = full_train_data.filter(is_valid_sample, num_proc = args.num_proc)
+    full_valid_data = full_valid_data.filter(is_valid_sample, num_proc = args.num_proc)
 
     print("Preprocessing the dataset...")
     # Critically, this assigns the "labels" values 
