@@ -510,8 +510,8 @@ def main_cli():
 
     # Check that the post-tokenization data is valid
     print("Checking that the post-tokenization data is valid...")
-    full_train_data = full_train_data.filter(is_valid_post_tokenization)
-    full_valid_data = full_valid_data.filter(is_valid_post_tokenization)
+    full_train_data = full_train_data.filter(is_valid_post_tokenization, num_proc = args.num_proc)
+    full_valid_data = full_valid_data.filter(is_valid_post_tokenization, num_proc = args.num_proc)
     print("Validation done. Data preview:")
     print(full_train_data[0])
 
