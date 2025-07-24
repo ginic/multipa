@@ -121,6 +121,7 @@ def remove_long_data(dataset, max_seconds=12):
     del dftest
     return dataset
 
+
 def concatenate_common_voice(datasetlist: list):
     """
     Concatenate more than one datasets from Common Voice.
@@ -176,6 +177,7 @@ def compute_metrics(pred, processor):
 
     return PHONE_ERRORS_COMPUTER.compute(predictions=pred_str, references=label_str)
 
+
 def check_gpus(expected_gpus: int = 0):
     """Validates that the epxected number of GPUs is available and prints memory usage.
     Set up for tracking GPU usage if using CUDA, see https://huggingface.co/docs/transformers/v4.18.0/en/performance
@@ -196,6 +198,21 @@ def check_gpus(expected_gpus: int = 0):
     if expected_gpus > 0 and expected_gpus != num_gpus:
         raise RuntimeError(f"Expected {expected_gpus} gpus, but found only {num_gpus}.")
 
+
+def is_valid_sample(batch):
+    audio = batch["audio"]
+    if len(audio["array"]) < 1600:  # 0.1 seconds at 16kHz
+        return False
+    if len(batch["ipa"]) == 0:
+        return False
+    return True
+
+
+def is_valid_post_tokenization(batch):
+    return (
+        "input_values" in batch and len(batch["input_values"]) > 0 and
+        "labels" in batch and len(batch["labels"]) > 0
+    )
 
 def main_cli():
     parser = argparse.ArgumentParser(description="Trains the speech recognition model. Specify corpus, "\
@@ -471,6 +488,11 @@ def main_cli():
     full_valid_data = full_valid_data.cast_column("audio", Audio(sampling_rate=16_000))
     print("Sampling rate adjustment done")
 
+    # Final filter to check that the samples are valid
+    print("Filtering the dataset to remove invalid samples...")
+    full_train_data = full_train_data.filter(is_valid_sample, num_proc = args.num_proc)
+    full_valid_data = full_valid_data.filter(is_valid_sample, num_proc = args.num_proc)
+
     print("Preprocessing the dataset...")
     # Critically, this assigns the "labels" values 
     # Try removing `num_proc=` if you encounter any errors while running this part
@@ -485,6 +507,13 @@ def main_cli():
         remove_columns=full_valid_data.column_names,
         num_proc=args.num_proc
     )
+
+    # Check that the post-tokenization data is valid
+    print("Checking that the post-tokenization data is valid...")
+    full_train_data = full_train_data.filter(is_valid_post_tokenization, num_proc = args.num_proc)
+    full_valid_data = full_valid_data.filter(is_valid_post_tokenization, num_proc = args.num_proc)
+    print("Validation done.")
+
     print(f"Removing audio files longer than {args.max_length} secs...")
     full_train_data = remove_long_data(full_train_data, args.max_length)
     full_valid_data = remove_long_data(full_valid_data, args.max_length)
