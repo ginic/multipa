@@ -23,5 +23,5 @@ multipa-train --output_dir "$model_dir2" --data_dir "$data_dir" --cache_dir "$da
     --learning_rate $learning_rate --per_device_train_batch_size $batch_size --gradient_accumulation_steps $grad_acc --mask_time_length 4 \
     --base_model facebook/wav2vec2-xls-r-300m \
     --train_seed 511 \
-    buckeye --train_samples 200 --val_samples 100 \
+    buckeye --train_samples 200 --val_samples 100 
     

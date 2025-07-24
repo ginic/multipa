@@ -2,7 +2,9 @@
 # Train an audio to IPA transcription speech recognizer
 
 #SBATCH -c 8
+#SBATCH -n 1
 #SBATCH --mem=32GB
+#SBATCH --constraint=vram16
 #SBATCH -p gpu-preempt
 #SBATCH -G 1 
 #SBATCH --time 12:00:00

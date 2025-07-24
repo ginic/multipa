@@ -296,7 +296,7 @@ def main_cli():
     # parser.add_argument("-a", "--additional_data", nargs=1, type=bool, default=False,
     #                    help="Specify if you want to use additional data fetched from Forvo.")
 
-    subparsers = parser.add_subparsers(help="Specify which corpus you'll be using", dest="corpus")
+    subparsers = parser.add_subparsers(help="Specify which corpus you'll be using", dest="corpus", required=True)
 
     comm_voice_subparser = subparsers.add_parser(
         COMMONVOICE_KEY, help="Use the Common Voice corpus version 11 from the Huggingface data repo."
@@ -412,6 +412,7 @@ def main_cli():
     final_results_to_write = {}
     logger.info("Loading corpus: %s", args.corpus)
     if args.corpus == LIBRISPEECH_KEY:
+        logger.info("Instantiating Librispeech processor")
         train_sampler = SimpleSampler(args.train_seed, args.train_samples)
         val_sampler = SimpleSampler(args.val_seed, args.val_samples)
         corpus_processor = LibriSpeechPreprocessor(
@@ -425,6 +426,7 @@ def main_cli():
         )
 
     elif args.corpus == BUCKEYE_KEY:
+        logger.info("Instantiating Buckeye processor")
         train_sampler = SimpleSampler(args.train_seed, args.train_samples)
         val_sampler = SimpleSampler(args.val_seed, args.val_samples)
         corpus_processor = BuckeyePreprocessor(
@@ -441,6 +443,7 @@ def main_cli():
         )
 
     elif args.corpus == COMMONVOICE_KEY:
+        logger.info("Instantiating CommonVoice processor")
         train_sampler = SubsetSampler(args.train_seed, args.train_samples, args.languages)
         val_sampler = SubsetSampler(args.val_seed, args.val_samples, args.languages)
         corpus_processor = CommonVoicePreprocessor(
