@@ -153,16 +153,16 @@ def test_buckeye_build_vocab(mock_buckeye, buckeye_preprocessor):
     # all symbols from the dataset are in the vocab already
     vocab = buckeye_preprocessor.create_vocabulary(mock_buckeye)
     # There are 62 symbols in the vocab from buckeye_ipa_inventory.txt plus padding and unknown
-    assert len(vocab) == 64
-    assert vocab["[UNK]"] == 62
-    assert vocab["[PAD]"] == 63
+    assert len(vocab) == 65
+    assert vocab["[UNK]"] == 63
+    assert vocab["[PAD]"] == 64
 
 
 def test_buckeye_build_vocab_extra_symbol(buckeye_preprocessor):
     # There two new symbols (ʐ, a) in the training data. Do they get added to the vocab?
     data = datasets.Dataset.from_dict({"ipa": ["ð ɪ s ɪ z ə t ɛ s t", "ʐ a b a"]})
     vocab = buckeye_preprocessor.create_vocabulary(data)
-    assert len(vocab) == 66
+    assert len(vocab) == 67
 
 
 def test_buckeye_clean_ipa(buckeye_preprocessor):
