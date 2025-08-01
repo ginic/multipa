@@ -32,7 +32,7 @@ for i in "${!seeds[@]}"; do
 
     echo "Starting training for data_seed_bs64_$i with seed=$seed"
 
-    multipa-train --output_dir "$model_dir" --data_dir "$data_dir" --no_space --cache_dir "$dataset_cache" --use_gpu --num_train_epochs 10 --num_proc 8 \
+    multipa-train --output_dir "$model_dir" --data_dir "$data_dir" --cache_dir "$dataset_cache" --use_gpu --num_train_epochs 10 --num_proc 8 \
         --learning_rate $learning_rate --per_device_train_batch_size $batch_size --gradient_accumulation_steps $grad_acc --mask_time_length 4 \
         --train_seed $seed \
         buckeye --train_samples 4000 --val_samples 5605

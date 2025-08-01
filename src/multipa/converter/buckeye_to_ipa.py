@@ -22,7 +22,7 @@ def buckeye_to_ipa(buckeye_transcription: str, is_keep_interrupts: bool = False)
     start_index = 0
     # Check for interrupts and convert substrings
     for i, sym in enumerate(buckeye_sym_list):
-        if sym in [BUCKEYE_INTERRUPT_SYMBOL, "VOCNOISE", "UNKNOWN"]:
+        if sym in [BUCKEYE_INTERRUPT_SYMBOL, "VOCNOISE", "UNKNOWN", "SIL"]:
             # Convert string prior to interruption
             if i != start_index:
                 ipa_seg = phonecodes.buckeye2ipa(" ".join(buckeye_sym_list[start_index:i]))
