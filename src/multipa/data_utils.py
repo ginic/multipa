@@ -39,8 +39,9 @@ def extract_whitespace_delimited_symbols(batch: dict) -> dict:
     in the batch. Used to build vocabulary when there is tokenization present.
     """
     all_text = " ".join(batch["ipa"])
+    whitespace_symbols = [s for s in set(all_text) if s.isspace()]
     symbols = set(all_text.split())
-    return {"vocab": list(symbols)}
+    return {"vocab": list(symbols) + whitespace_symbols}
 
 
 def remove_space(batch: dict, col_key: str) -> dict:
@@ -331,9 +332,8 @@ class CorpusPreprocessor(ABC):
 
             final_vocab = final_vocab | vocab_from_file
 
-        # If you don't want whitespace in the output or the data is whitespace delimited
-        # remove spaces from the vocabulary
-        if self.is_remove_spaces or self.is_whitespace_delimited:
+        # If you don't want whitespace in the output
+        if self.is_remove_spaces:
             final_vocab = filter(lambda v: not v.isspace(), final_vocab)
 
         vocab_dict_ipa = {v: k for k, v in enumerate(final_vocab)}
@@ -395,7 +395,7 @@ class BuckeyePreprocessor(CorpusPreprocessor):
             num_proc,
             file_suffix,
             unused_columns=self.COLS_TO_DROP,
-            is_remove_spaces=False,
+            is_remove_spaces=True,
             vocab_resource_file=self.VOCAB_RESOURCE,
             is_whitespace_delimited=True,
         )

@@ -156,6 +156,7 @@ def test_buckeye_build_vocab(mock_buckeye, buckeye_preprocessor):
     assert len(vocab) == 65
     assert vocab["[UNK]"] == 63
     assert vocab["[PAD]"] == 64
+    assert " " not in vocab
 
 
 def test_buckeye_build_vocab_extra_symbol(buckeye_preprocessor):
@@ -192,10 +193,10 @@ def test_buckeye_clean_ipa(buckeye_preprocessor):
         "speaker_age_range": ["y", "o"] * 2,
     }
     expected_ipa = [
-        "ð ɪ s ɪ z ə t ɛ s t",
+        "ðɪsɪzətɛst",
         "",
         "",
-        "ð æ ʔ",
+        "ðæʔ",
     ]
 
     hf_dataset = datasets.Dataset.from_dict(buckeye_dict)
@@ -254,8 +255,8 @@ def text_extract_all_chars_ipa_batched():
 
 
 def test_whitespace_delimited_symbols():
-    batch = {"ipa": ["dʒ ŋ͡m cʼ ɹ̩"]}
-    expected_vocab = set(["dʒ", "ŋ͡m", "cʼ", "ɹ̩"])
+    batch = {"ipa": ["dʒ ŋ͡m cʼ\tɹ̩"]}
+    expected_vocab = set(["dʒ", "ŋ͡m", "cʼ", "ɹ̩", " ", "\t"])
     vocab = extract_whitespace_delimited_symbols(batch)
     assert len(vocab["vocab"]) == len(expected_vocab)
     assert set(vocab["vocab"]) == expected_vocab
@@ -264,6 +265,6 @@ def test_whitespace_delimited_symbols():
 def test_whitespace_delimited_symbols_batched():
     dataset = datasets.Dataset.from_dict({"ipa": ["dʒ c", "ŋ͡m", "cʼ ", "ɹ̩ d", "d\tc"]})
     vocab = dataset.map(extract_whitespace_delimited_symbols, batched=True, remove_columns=["ipa"])
-    expected_vocab = set(["d", "dʒ", "ŋ͡m", "c", "cʼ", "ɹ̩"])
+    expected_vocab = set(["d", "dʒ", "ŋ͡m", "c", "cʼ", "ɹ̩", " ", "\t"])
     assert len(vocab["vocab"]) == len(expected_vocab)
     assert set(vocab["vocab"]) == expected_vocab
