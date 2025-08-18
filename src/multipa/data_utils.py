@@ -177,7 +177,7 @@ def load_common_voice_split(
         full_dataset = full_dataset.filter(lambda batch: "ச" not in batch["sentence"], num_proc=num_proc)
 
     if quality_filter:
-        full_dataset = full_dataset.filter(lambda batch: batch["down_votes"] == 0, self.num_proc)
+        full_dataset = full_dataset.filter(lambda batch: batch["down_votes"] == 0, num_proc=num_proc)
 
     return full_dataset
 
