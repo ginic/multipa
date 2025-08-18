@@ -25,6 +25,8 @@ def test_english_generate_ipa():
         ("U", "", False),
         ("dh s VOCNOISE k", "ð s U k", True),
         ("dh s UNKNOWN k", "ð s k", False),
+        ("dh s SIL k", "ð s k", False),
+        ("dh s SIL k", "ð s U k", True),
     ],
 )
 def test_buckeye_to_ipa(buckeye_input, expected_ipa, keep_interrupts):
