@@ -1,10 +1,12 @@
 #!/bin/bash
 
 #SBATCH -c 8
-#SBATCH --mem=8GB
+#SBATCH --mem=24GB
 #SBATCH -p gpu-preempt
-#SBATCH -G 1
-#SBATCH --time 16:00:00
+#SBATCH -G 4
+#SBATCH --nodes=1
+#SBATCH --constraint=vram40
+#SBATCH --time 10:00:00
 #SBATCH -o %j_vary_individuals_eval.out
 #SBATCH --mail-type END
 
@@ -28,3 +30,4 @@ multipa-evaluate --local_models \
  --eval_out $EVAL_RESULTS_CSV \
  --verbose_results_dir $DETAILED_RESULTS_DIR \
  --no_space --use_gpu --data_dir $DATA_DIR
+ --use_gpu
