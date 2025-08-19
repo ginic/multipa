@@ -65,7 +65,7 @@ class ModelEvaluator:
         df.to_csv(csv_path)
 
 
-def preprocess_test_data(test_dataset: datasets.Dataset, is_remove_space: bool = False):
+def preprocess_test_data(test_dataset: datasets.Dataset, is_remove_space: bool = False, num_proc: int|None=None):
     """
     Filters the test dataset into examples with non-empty and empty transcriptions,
     since they should be evaluated separately.
@@ -74,17 +74,18 @@ def preprocess_test_data(test_dataset: datasets.Dataset, is_remove_space: bool =
     Args:
         test_dataset: Huggingface dataset you'll use for evaluation
         is_remove_space: Filter out spaces in IPA strings if true
+        num_proc: The number of processes to use for multiprocessing. If None, no multiprocessing is used. 
 
     Returns:
         non_empty_transcriptions_dataset, empty_transcriptions_dataset: a tuple of Huggingface datasets
     """
     # Set sampling rate to 16K
     input_data = test_dataset.cast_column("audio", datasets.Audio(sampling_rate=16_000)).map(
-        lambda x: clean_text(x, is_remove_space=is_remove_space)
+        lambda x: clean_text(x, is_remove_space=is_remove_space), num_proc=num_proc
     )
 
-    empty_test_data = input_data.filter(lambda x: x["ipa"] == EMPTY_TRANSCRIPTION)
-    non_empty_test_data = input_data.filter(lambda x: x["ipa"] != EMPTY_TRANSCRIPTION)
+    empty_test_data = input_data.filter(lambda x: x["ipa"] == EMPTY_TRANSCRIPTION, num_proc = num_proc)
+    non_empty_test_data = input_data.filter(lambda x: x["ipa"] != EMPTY_TRANSCRIPTION, num_proc = num_proc)
 
     return non_empty_test_data, empty_test_data
 
@@ -109,7 +110,7 @@ def main(
     verbose_results_dir: Optional[Path] = None,
     is_remove_space: bool = False,
     use_gpu: bool = False,
-    num_proc: int = 8,
+    num_proc: int|None = None,
 ):
     if local_models is None:
         local_models = []
@@ -117,7 +118,7 @@ def main(
         hf_models = []
 
     print("Loading test data")
-    non_empty_test_data, empty_test_data = preprocess_test_data(input_data, is_remove_space)
+    non_empty_test_data, empty_test_data = preprocess_test_data(input_data, is_remove_space, num_proc)
     print("Number of test examples with NON-empty transcriptions:", len(non_empty_test_data))
     print(non_empty_test_data)
 
@@ -134,16 +135,19 @@ def main(
 
         print("Getting predictions for audio with non-empty gold-standard transcriptions")
         predictions = datasets.Dataset.from_list(pipe(non_empty_test_data["audio"]))
-        predictions = predictions.map(lambda x: clean_text(x, text_key="text", is_remove_space=self.is_remove_spaces), num_proc=num_proc)
-        predictions = predcictions.rename_column("text", PREDICTION_KEY)
+        predictions = predictions.map(lambda x: clean_text(x, text_key="text", is_remove_space=is_remove_spaces), num_proc=num_proc)
+        predictions = predictions.rename_column("text", PREDICTION_KEY)
+        print("Predictions data preview:")
+        print(predictions[0])
 
         print("Computing performance metrics for non-empty audio transcriptions")
         metrics = model_eval_tracker.eval_non_empty_transcriptions(model, predictions[PREDICTION_KEY], non_empty_test_data["ipa"])
 
         print("Getting predictions for audio with empty gold-standard transcriptions")
         empty_test_data_predictions = datasets.Dataset.from_list(pipe(empty_test_data["audio"]))
-        empty_test_data_predictions = empty_test_data_predictions.map(lambda x: clean_text(x, text_key="text", is_remove_space=self.is_remove_spaces), num_proc=num_proc)        
-        phone_lengths = model_eval_tracker.eval_empty_transcriptions(model, empty_test_data_predictions)
+        empty_test_data_predictions = empty_test_data_predictions.map(lambda x: clean_text(x, text_key="text", is_remove_space=is_remove_spaces), num_proc=num_proc)
+        empty_test_data_predictions = empty_test_data_predictions.rename_column("text", PREDICTION_KEY)
+        phone_lengths = model_eval_tracker.eval_empty_transcriptions(model, empty_test_data_predictions[PREDICTION_KEY])
 
         # Write detailed by example evaluation if desired
         if verbose_results_dir:
@@ -217,7 +221,7 @@ def main_cli():
     )
 
     parser.add_argument(
-        "--num_proc", type=int, default=8, help="Specify the number of CPUs for preprocessing. Default set to 8."
+        "--num_proc", type=int, help="Specify the number of CPUs for preprocessing. If unset, no multiprocessing is used."
     )
 
     args = parser.parse_args()
