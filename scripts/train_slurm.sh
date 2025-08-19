@@ -2,8 +2,8 @@
 # Train an audio to IPA transcription speech recognizer
 
 #SBATCH -c 8
-#SBATCH --nodes=1
-#SBATCH --mem=12GB
+#SBATCH -n 1
+#SBATCH --mem=32GB
 #SBATCH --constraint=vram16
 #SBATCH -p gpu-preempt
 #SBATCH -G 1 
@@ -13,6 +13,8 @@
 
 data_dir=data/buckeye
 cache_dir=dataset_cache
+vocab_file=data/vocab.en.json
+
 model_dir=data/test_model
 
 module load conda/latest
