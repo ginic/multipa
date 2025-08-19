@@ -274,7 +274,7 @@ class CorpusPreprocessor(ABC):
         self._latest_training_data_stats = {}
 
     @abstractmethod
-    def get_train_split(self) -> datasets.Dataset:
+    def get_train_split_and_vocab(self) -> tuple[datasets.Dataset, dict[str, int]]:
         pass
 
     @abstractmethod
@@ -466,11 +466,13 @@ class BuckeyePreprocessor(CorpusPreprocessor):
         logger.info("Full train dataset size: %s", len(full_train_data))
         return full_train_data
 
-    def get_train_split(self):
+    def get_train_split_and_vocab(self):
         train_data = load_buckeye_split(self.data_dir, "train")
         full_train_data = self._filter_train_dataset(train_data)
+        # You need to create the vocabulary before removing spaces, because it's whitespace delimited
+        vocab = self.create_vocabulary(full_train_data)
         full_train_data = self.clean_ipa_transcription(full_train_data)
-        return self.remove_unused_columns(full_train_data)
+        return self.remove_unused_columns(full_train_data), vocab
 
     def get_validation_split(self) -> datasets.Dataset:
         valid_data = load_buckeye_split(self.data_dir, "validation")
@@ -550,8 +552,10 @@ class CommonVoicePreprocessor(CorpusPreprocessor):
         full_data = concatenate_common_voice(data_list)
         return self.remove_unused_columns(full_data)
 
-    def get_train_split(self):
-        return self.clean_ipa_transcription(self._get_split("train", "train", self.train_sampler))
+    def get_train_split_and_vocab(self):
+        train_dataset = self._get_split("train", "train", self.train_sampler)
+        vocab = self.create_vocabulary(train_dataset)
+        return self.clean_ipa_transcription(train_dataset), vocab
 
     def get_validation_split(self):
         return self.clean_ipa_transcription(self._get_split("valid", "validation", self.val_sampler))
@@ -603,9 +607,10 @@ class LibriSpeechPreprocessor(CorpusPreprocessor):
         dataset = dataset.shuffle(seed=sampler.seed).select(range(limit))
         return self.remove_unused_columns(dataset)
 
-    def get_train_split(self):
+    def get_train_split_and_vocab(self):
         train_data = self._get_split("train", "train.clean.100", self.train_sampler, f"en_train{self.suffix}.json")
-        return self.clean_ipa_transcription(train_data)
+        vocab = self.create_vocabulary(train_data)
+        return self.clean_ipa_transcription(train_data), vocab
 
     def get_validation_split(self):
         val_data = self._get_split("valid", "validation.clean", self.val_sampler, f"en_valid{self.suffix}.json")
