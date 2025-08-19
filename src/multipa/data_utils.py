@@ -311,6 +311,11 @@ class CorpusPreprocessor(ABC):
             )
             final_vocab = final_vocab | set(d_vocab["vocab"])
 
+        # If you don't want whitespace in the output
+        if self.is_remove_spaces:
+            logger.info("Removing whitespaces from vocabulary")
+            final_vocab = set(filter(lambda v: not v.isspace(), final_vocab))
+
         if self.vocab_resource_file is not None:
             vocab_file = importlib.resources.files("multipa.resources").joinpath(self.vocab_resource_file)
             vocab_from_file = set([line.strip() for line in vocab_file.read_text().splitlines()])
@@ -331,10 +336,6 @@ class CorpusPreprocessor(ABC):
                 )
 
             final_vocab = final_vocab | vocab_from_file
-
-        # If you don't want whitespace in the output
-        if self.is_remove_spaces:
-            final_vocab = filter(lambda v: not v.isspace(), final_vocab)
 
         vocab_dict_ipa = {v: k for k, v in enumerate(final_vocab)}
         vocab_dict_ipa[UNKNOWN_TOKEN] = len(vocab_dict_ipa)
