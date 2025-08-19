@@ -5,7 +5,8 @@
 #SBATCH --mem=12GB
 #SBATCH -G 2
 #SBATCH -p gpu-preempt
-#SBATCH --time 02:00:00
+#SBATCH --time 12:00:00
+#SBATCH --constraint=25gbps
 #SBATCH -o setup_%j.out
 #SBATCH --mail-type END
 

@@ -1,11 +1,12 @@
 #!/bin/bash
 
 #SBATCH -c 8
-#SBATCH --mem=12GB
+#SBATCH --mem=24GB
 #SBATCH -p gpu-preempt
 #SBATCH -G 4
 #SBATCH --constraint=vram40
-#SBATCH --time 24:00:00
+#SBATCH --nodes=1
+#SBATCH --time 3:00:00
 #SBATCH -o %j_hyperparam_tuning_xls-r-300m_3.out
 #SBATCH --mail-type END
 
