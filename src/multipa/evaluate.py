@@ -134,29 +134,31 @@ def main(
         print("Evaluating model:", model)
         pipe = transformers.pipeline("automatic-speech-recognition", model=model, device=selected_torch_device)
 
-        print("Getting predictions for audio with non-empty gold-standard transcriptions")
-        predictions = datasets.Dataset.from_list(pipe(non_empty_test_data["audio"]))
-        predictions = predictions.map(
-            lambda x: clean_text(x, text_key="text", is_remove_space=is_remove_space), num_proc=num_proc
-        )
-        predictions = predictions.rename_column("text", PREDICTION_KEY)
-        print("Predictions data preview:")
-        print(predictions[0])
+        if len(non_empty_test_data) > 0: 
+            print("Getting predictions for audio with non-empty gold-standard transcriptions")
+            predictions = datasets.Dataset.from_list(pipe(non_empty_test_data["audio"]))
+            predictions = predictions.map(
+                lambda x: clean_text(x, text_key="text", is_remove_space=is_remove_space), num_proc=num_proc
+            )
+            predictions = predictions.rename_column("text", PREDICTION_KEY)
+            print("Predictions data preview:")
+            print(predictions[0])
 
-        print("Computing performance metrics for non-empty audio transcriptions")
-        metrics = model_eval_tracker.eval_non_empty_transcriptions(
-            model, predictions[PREDICTION_KEY], non_empty_test_data["ipa"]
-        )
+            print("Computing performance metrics for non-empty audio transcriptions")
+            metrics = model_eval_tracker.eval_non_empty_transcriptions(
+                model, predictions[PREDICTION_KEY], non_empty_test_data["ipa"]
+            )
 
-        print("Getting predictions for audio with empty gold-standard transcriptions")
-        empty_test_data_predictions = datasets.Dataset.from_list(pipe(empty_test_data["audio"]))
-        empty_test_data_predictions = empty_test_data_predictions.map(
-            lambda x: clean_text(x, text_key="text", is_remove_space=is_remove_space), num_proc=num_proc
-        )
-        empty_test_data_predictions = empty_test_data_predictions.rename_column("text", PREDICTION_KEY)
-        phone_lengths = model_eval_tracker.eval_empty_transcriptions(
-            model, empty_test_data_predictions[PREDICTION_KEY]
-        )
+        if len(empty_test_data) > 0:
+            print("Getting predictions for audio with empty gold-standard transcriptions")
+            empty_test_data_predictions = datasets.Dataset.from_list(pipe(empty_test_data["audio"]))
+            empty_test_data_predictions = empty_test_data_predictions.map(
+                lambda x: clean_text(x, text_key="text", is_remove_space=is_remove_space), num_proc=num_proc
+            )
+            empty_test_data_predictions = empty_test_data_predictions.rename_column("text", PREDICTION_KEY)
+            phone_lengths = model_eval_tracker.eval_empty_transcriptions(
+                model, empty_test_data_predictions[PREDICTION_KEY]
+            )
 
         # Write detailed by example evaluation if desired
         if verbose_results_dir:
@@ -166,21 +168,23 @@ def main(
             hallucinations_csv = verbose_results_dir / (f"{clean_model_name}_{HALLUCINATIONS_SUFFIX}")
             detailed_results_csv = verbose_results_dir / (f"{clean_model_name}_{DETAILED_PREDICTIONS_CSV_SUFFIX}")
 
-            empty_test_to_write = empty_test_data_predictions.add_column(
-                "num_hallucinated_phones", phone_lengths
-            ).remove_columns(["audio"])
-            empty_test_to_write.to_csv(hallucinations_csv, index=False)
+            if len(empty_test_data) > 0: 
+                empty_test_to_write = empty_test_data_predictions.add_column(
+                    "num_hallucinated_phones", phone_lengths
+                ).remove_columns(["audio"])
+                empty_test_to_write.to_csv(hallucinations_csv, index=False)
 
-            detailed_results = non_empty_test_data.add_column(
-                PREDICTION_KEY, predictions[PREDICTION_KEY]
-            ).remove_columns(["audio"])
-            for k in ["phone_error_rates", "phone_feature_error_rates", "feature_error_rates"]:
-                detailed_results = detailed_results.add_column(k, metrics[k])
+            if len(non_empty_test_data) > 0:
+                detailed_results = non_empty_test_data.add_column(
+                    PREDICTION_KEY, predictions[PREDICTION_KEY]
+                ).remove_columns(["audio"])
+                for k in ["phone_error_rates", "phone_feature_error_rates", "feature_error_rates"]:
+                    detailed_results = detailed_results.add_column(k, metrics[k])
 
-            if "__index_level_0__" in detailed_results.column_names:
-                detailed_results = detailed_results.remove_columns(["__index_level_0__"])
+                if "__index_level_0__" in detailed_results.column_names:
+                    detailed_results = detailed_results.remove_columns(["__index_level_0__"])
 
-            detailed_results.to_csv(detailed_results_csv, index=False)
+                detailed_results.to_csv(detailed_results_csv, index=False)
 
     # Write final metrics results for all models
     model_eval_tracker.to_csv(eval_csv)
