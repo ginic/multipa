@@ -4,6 +4,7 @@
 #SBATCH --mem=12GB
 #SBATCH -p gpu-preempt
 #SBATCH -G 8
+#SBATCH --nodes=1
 #SBATCH --constraint=vram40
 #SBATCH --time 40:00:00
 #SBATCH -o %j_combined_data_seeds.out

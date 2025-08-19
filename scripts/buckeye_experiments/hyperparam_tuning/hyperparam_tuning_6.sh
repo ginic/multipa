@@ -4,6 +4,7 @@
 #SBATCH --mem=12GB
 #SBATCH -p gpu-preempt
 #SBATCH -G 4
+#SBATCH --nodes=1
 #SBATCH --constraint=vram40
 #SBATCH --time 24:00:00
 #SBATCH -o %j_hyperparam_tuning_6.out
