@@ -90,6 +90,24 @@ def preprocess_test_data(test_dataset: datasets.Dataset, is_remove_space: bool =
     return non_empty_test_data, empty_test_data
 
 
+def clean_predictions_batch(predictions_batch, target_key: str = "text", is_remove_space: bool = False) -> list[str]:
+    """Convenience function for removing spaces from model output
+    that matches the way spaces are removed from training data.
+    This helps ensure that spaces are handled the same way in both predictions
+    and evaluation data.
+
+    Args:
+        predictions_batch: Iterable of dictionaries, the output of the model pipeline
+        target_key: str, key for the transcription output in a single prediction. Defaults to "text".
+        is_remove_space: bool, whether to remove spaces from model predictions. Defaults to False.
+
+    Returns:
+        A list of predicted transcriptions with spaces removed as desired
+    """
+    clean_batch = map(lambda x: clean_text(x, text_key=target_key, is_remove_space=is_remove_space), predictions_batch)
+    return [d[target_key] for d in clean_batch]
+
+
 def get_torch_device(use_gpu: bool = False):
     """Return the torch.device to load the model to.
 
@@ -130,10 +148,13 @@ def main(
     for model in local_models + hf_models:
         print("Evaluating model:", model)
         pipe = transformers.pipeline("automatic-speech-recognition", model=model, device=selected_torch_device)
-        predictions = [d["text"] for d in pipe(non_empty_test_data["audio"])]
+        predictions = clean_predictions_batch(pipe(non_empty_test_data["audio"]), is_remove_space=is_remove_space)
+
         metrics = model_eval_tracker.eval_non_empty_transcriptions(model, predictions, non_empty_test_data["ipa"])
 
-        empty_test_data_predictions = [d["text"] for d in pipe(empty_test_data["audio"])]
+        empty_test_data_predictions = clean_predictions_batch(
+            pipe(empty_test_data["audio"]), is_remove_space=is_remove_space
+        )
         phone_lengths = model_eval_tracker.eval_empty_transcriptions(model, empty_test_data_predictions)
 
         # Write detailed by example evaluation if desired
