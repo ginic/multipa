@@ -83,8 +83,6 @@ def preprocess_test_data(test_dataset: datasets.Dataset, is_remove_space: bool =
     )
 
     empty_test_data = input_data.filter(lambda x: x["ipa"] == EMPTY_TRANSCRIPTION)
-    print("Number of test examples with empty transcriptions:", len(empty_test_data))
-    print(empty_test_data)
     non_empty_test_data = input_data.filter(lambda x: x["ipa"] != EMPTY_TRANSCRIPTION)
 
     return non_empty_test_data, empty_test_data
