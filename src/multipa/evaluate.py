@@ -23,6 +23,7 @@ PHONE_ERRORS_EVALUATOR = evaluate.load("ginic/phone_errors")
 DETAILED_PREDICTIONS_CSV_SUFFIX = "detailed_predictions.csv"
 HALLUCINATIONS_SUFFIX = "hallucinations.csv"
 
+PREDICTION_KEY = "prediction"
 
 class ModelEvaluator:
     model_key = "model"
@@ -88,24 +89,6 @@ def preprocess_test_data(test_dataset: datasets.Dataset, is_remove_space: bool =
     return non_empty_test_data, empty_test_data
 
 
-def clean_predictions_batch(predictions_batch, target_key: str = "text", is_remove_space: bool = False) -> list[str]:
-    """Convenience function for removing spaces from model output
-    that matches the way spaces are removed from training data.
-    This helps ensure that spaces are handled the same way in both predictions
-    and evaluation data.
-
-    Args:
-        predictions_batch: Iterable of dictionaries, the output of the model pipeline
-        target_key: str, key for the transcription output in a single prediction. Defaults to "text".
-        is_remove_space: bool, whether to remove spaces from model predictions. Defaults to False.
-
-    Returns:
-        A list of predicted transcriptions with spaces removed as desired
-    """
-    clean_batch = map(lambda x: clean_text(x, text_key=target_key, is_remove_space=is_remove_space), predictions_batch)
-    return [d[target_key] for d in clean_batch]
-
-
 def get_torch_device(use_gpu: bool = False):
     """Return the torch.device to load the model to.
 
@@ -126,12 +109,14 @@ def main(
     verbose_results_dir: Optional[Path] = None,
     is_remove_space: bool = False,
     use_gpu: bool = False,
+    num_proc: int = 8,
 ):
     if local_models is None:
         local_models = []
     if hf_models is None:
         hf_models = []
 
+    print("Loading test data")
     non_empty_test_data, empty_test_data = preprocess_test_data(input_data, is_remove_space)
     print("Number of test examples with NON-empty transcriptions:", len(non_empty_test_data))
     print(non_empty_test_data)
@@ -146,13 +131,18 @@ def main(
     for model in local_models + hf_models:
         print("Evaluating model:", model)
         pipe = transformers.pipeline("automatic-speech-recognition", model=model, device=selected_torch_device)
-        predictions = clean_predictions_batch(pipe(non_empty_test_data["audio"]), is_remove_space=is_remove_space)
 
-        metrics = model_eval_tracker.eval_non_empty_transcriptions(model, predictions, non_empty_test_data["ipa"])
+        print("Getting predictions for audio with non-empty gold-standard transcriptions")
+        predictions = datasets.Dataset.from_list(pipe(non_empty_test_data["audio"]))
+        predictions = predictions.map(lambda x: clean_text(x, text_key="text", is_remove_space=self.is_remove_spaces), num_proc=num_proc)
+        predictions = predcictions.rename_column("text", PREDICTION_KEY)
 
-        empty_test_data_predictions = clean_predictions_batch(
-            pipe(empty_test_data["audio"]), is_remove_space=is_remove_space
-        )
+        print("Computing performance metrics for non-empty audio transcriptions")
+        metrics = model_eval_tracker.eval_non_empty_transcriptions(model, predictions[PREDICTION_KEY], non_empty_test_data["ipa"])
+
+        print("Getting predictions for audio with empty gold-standard transcriptions")
+        empty_test_data_predictions = datasets.Dataset.from_list(pipe(empty_test_data["audio"]))
+        empty_test_data_predictions = empty_test_data_predictions.map(lambda x: clean_text(x, text_key="text", is_remove_space=self.is_remove_spaces), num_proc=num_proc)        
         phone_lengths = model_eval_tracker.eval_empty_transcriptions(model, empty_test_data_predictions)
 
         # Write detailed by example evaluation if desired
@@ -164,13 +154,13 @@ def main(
             detailed_results_csv = verbose_results_dir / (f"{clean_model_name}_{DETAILED_PREDICTIONS_CSV_SUFFIX}")
 
             empty_test_to_write = (
-                empty_test_data.add_column("prediction", empty_test_data_predictions)
-                .add_column("num_hallucinated_phones", phone_lengths)
-                .remove_columns(["audio"])
+                empty_test_data_predictions
+                              .add_column("num_hallucinated_phones", phone_lengths)
+                              .remove_columns(["audio"])
             )
             empty_test_to_write.to_csv(hallucinations_csv, index=False)
 
-            detailed_results = non_empty_test_data.add_column("prediction", predictions).remove_columns(["audio"])
+            detailed_results = non_empty_test_data.add_column(PREDICTION_KEY, predictions[PREDICTION_KEY]).remove_columns(["audio"])
             for k in ["phone_error_rates", "phone_feature_error_rates", "feature_error_rates"]:
                 detailed_results = detailed_results.add_column(k, metrics[k])
 
@@ -226,6 +216,10 @@ def main_cli():
         help="Use a GPU for inference if available. Otherwise the model runs on CPUs.",
     )
 
+    parser.add_argument(
+        "--num_proc", type=int, default=8, help="Specify the number of CPUs for preprocessing. Default set to 8."
+    )
+
     args = parser.parse_args()
 
     buckeye_test = load_buckeye_split(args.data_dir, "test")
@@ -237,6 +231,7 @@ def main_cli():
         args.verbose_results_dir,
         args.no_space,
         args.use_gpu,
+        args.num_proc
     )
 
 

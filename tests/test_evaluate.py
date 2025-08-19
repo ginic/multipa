@@ -54,16 +54,3 @@ def test_model_evaluator(tmp_path):
         "total_phone_hallucinations",
     ]
     assert set(test_df.columns) == set(expected_columns)
-
-
-def test_clean_predictions_batch():
-    batch = [
-        {"text": "a b c", "random": 1243},
-        {"text": None, "random": "xyz"},
-        {"text": "abc", "random": -1},
-        {"text": ""},
-        {"text": "\t"},
-    ]
-    assert clean_predictions_batch(batch, is_remove_space=False) == ["a b c", "", "abc", "", "\t"]
-
-    assert clean_predictions_batch(batch, is_remove_space=True) == ["abc", "", "abc", "", ""]
