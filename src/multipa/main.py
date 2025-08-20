@@ -184,9 +184,9 @@ def is_valid_sample(batch):
 
 def is_valid_post_tokenization(batch):
     return (
-        "input_values" in batch and len(batch["input_values"]) > 0 and
-        "labels" in batch and len(batch["labels"]) > 0
+        "input_values" in batch and len(batch["input_values"]) > 0 and "labels" in batch and len(batch["labels"]) > 0
     )
+
 
 def main_cli():
     logging.basicConfig(level=logging.INFO, format="%(levelname)s : %(asctime)s : %(name)s : %(message)s")
@@ -467,7 +467,8 @@ def main_cli():
     #     print("Concatenated additional data from Forvo")
 
     # Remove unnecessary columns - have to do this using remove_columns because select_columns wasn't available in older HF versions
-    full_train_data = corpus_processor.get_train_split()
+    print("Preparing training data and creating vocabulary...")
+    full_train_data, vocab_dict_ipa = corpus_processor.get_train_split_and_vocab()
     full_valid_data = corpus_processor.get_validation_split()
 
     # Add any stats about training data to the final report
@@ -476,10 +477,6 @@ def main_cli():
     print("Data selection complete. Data preview:")
     print(full_train_data[0])
     assert full_train_data.features.type == full_valid_data.features.type
-
-    # Preprocessing
-    print("Creating vocabulary...")
-    vocab_dict_ipa = corpus_processor.create_vocabulary(full_train_data, full_valid_data)
 
     print("Writing vocab json files...")
     vocab_file = output_dir / f"{args.corpus}_ipa_vocab{args.suffix}.json"
@@ -521,8 +518,8 @@ def main_cli():
 
     # Final filter to check that the samples are valid
     print("Filtering the dataset to remove invalid samples...")
-    full_train_data = full_train_data.filter(is_valid_sample, num_proc = args.num_proc)
-    full_valid_data = full_valid_data.filter(is_valid_sample, num_proc = args.num_proc)
+    full_train_data = full_train_data.filter(is_valid_sample, num_proc=args.num_proc)
+    full_valid_data = full_valid_data.filter(is_valid_sample, num_proc=args.num_proc)
 
     print("Preprocessing the dataset...")
     # Critically, this assigns the "labels" values
@@ -537,8 +534,8 @@ def main_cli():
 
     # Check that the post-tokenization data is valid
     print("Checking that the post-tokenization data is valid...")
-    full_train_data = full_train_data.filter(is_valid_post_tokenization, num_proc = args.num_proc)
-    full_valid_data = full_valid_data.filter(is_valid_post_tokenization, num_proc = args.num_proc)
+    full_train_data = full_train_data.filter(is_valid_post_tokenization, num_proc=args.num_proc)
+    full_valid_data = full_valid_data.filter(is_valid_post_tokenization, num_proc=args.num_proc)
     print("Validation done.")
 
     print(f"Removing audio files longer than {args.max_length} secs...")

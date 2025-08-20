@@ -23,6 +23,8 @@ PHONE_ERRORS_EVALUATOR = evaluate.load("ginic/phone_errors")
 DETAILED_PREDICTIONS_CSV_SUFFIX = "detailed_predictions.csv"
 HALLUCINATIONS_SUFFIX = "hallucinations.csv"
 
+PREDICTION_KEY = "prediction"
+
 
 class ModelEvaluator:
     model_key = "model"
@@ -64,7 +66,7 @@ class ModelEvaluator:
         df.to_csv(csv_path)
 
 
-def preprocess_test_data(test_dataset: datasets.Dataset, is_remove_space: bool = False):
+def preprocess_test_data(test_dataset: datasets.Dataset, is_remove_space: bool = False, num_proc: int | None = None):
     """
     Filters the test dataset into examples with non-empty and empty transcriptions,
     since they should be evaluated separately.
@@ -73,19 +75,18 @@ def preprocess_test_data(test_dataset: datasets.Dataset, is_remove_space: bool =
     Args:
         test_dataset: Huggingface dataset you'll use for evaluation
         is_remove_space: Filter out spaces in IPA strings if true
+        num_proc: The number of processes to use for multiprocessing. If None, no multiprocessing is used.
 
     Returns:
         non_empty_transcriptions_dataset, empty_transcriptions_dataset: a tuple of Huggingface datasets
     """
     # Set sampling rate to 16K
     input_data = test_dataset.cast_column("audio", datasets.Audio(sampling_rate=16_000)).map(
-        lambda x: clean_text(x, is_remove_space=is_remove_space)
+        lambda x: clean_text(x, is_remove_space=is_remove_space), num_proc=num_proc
     )
 
-    empty_test_data = input_data.filter(lambda x: x["ipa"] == EMPTY_TRANSCRIPTION)
-    print("Number of test examples with empty transcriptions:", len(empty_test_data))
-    print(empty_test_data)
-    non_empty_test_data = input_data.filter(lambda x: x["ipa"] != EMPTY_TRANSCRIPTION)
+    empty_test_data = input_data.filter(lambda x: x["ipa"] == EMPTY_TRANSCRIPTION, num_proc=num_proc)
+    non_empty_test_data = input_data.filter(lambda x: x["ipa"] != EMPTY_TRANSCRIPTION, num_proc=num_proc)
 
     return non_empty_test_data, empty_test_data
 
@@ -110,13 +111,15 @@ def main(
     verbose_results_dir: Optional[Path] = None,
     is_remove_space: bool = False,
     use_gpu: bool = False,
+    num_proc: int | None = None,
 ):
     if local_models is None:
         local_models = []
     if hf_models is None:
         hf_models = []
 
-    non_empty_test_data, empty_test_data = preprocess_test_data(input_data, is_remove_space)
+    print("Loading test data")
+    non_empty_test_data, empty_test_data = preprocess_test_data(input_data, is_remove_space, num_proc)
     print("Number of test examples with NON-empty transcriptions:", len(non_empty_test_data))
     print(non_empty_test_data)
 
@@ -130,11 +133,32 @@ def main(
     for model in local_models + hf_models:
         print("Evaluating model:", model)
         pipe = transformers.pipeline("automatic-speech-recognition", model=model, device=selected_torch_device)
-        predictions = [d["text"] for d in pipe(non_empty_test_data["audio"])]
-        metrics = model_eval_tracker.eval_non_empty_transcriptions(model, predictions, non_empty_test_data["ipa"])
 
-        empty_test_data_predictions = [d["text"] for d in pipe(empty_test_data["audio"])]
-        phone_lengths = model_eval_tracker.eval_empty_transcriptions(model, empty_test_data_predictions)
+        if len(non_empty_test_data) > 0: 
+            print("Getting predictions for audio with non-empty gold-standard transcriptions")
+            predictions = datasets.Dataset.from_list(pipe(non_empty_test_data["audio"]))
+            predictions = predictions.map(
+                lambda x: clean_text(x, text_key="text", is_remove_space=is_remove_space), num_proc=num_proc
+            )
+            predictions = predictions.rename_column("text", PREDICTION_KEY)
+            print("Predictions data preview:")
+            print(predictions[0])
+
+            print("Computing performance metrics for non-empty audio transcriptions")
+            metrics = model_eval_tracker.eval_non_empty_transcriptions(
+                model, predictions[PREDICTION_KEY], non_empty_test_data["ipa"]
+            )
+
+        if len(empty_test_data) > 0:
+            print("Getting predictions for audio with empty gold-standard transcriptions")
+            empty_test_data_predictions = datasets.Dataset.from_list(pipe(empty_test_data["audio"]))
+            empty_test_data_predictions = empty_test_data_predictions.map(
+                lambda x: clean_text(x, text_key="text", is_remove_space=is_remove_space), num_proc=num_proc
+            )
+            empty_test_data_predictions = empty_test_data_predictions.rename_column("text", PREDICTION_KEY)
+            phone_lengths = model_eval_tracker.eval_empty_transcriptions(
+                model, empty_test_data_predictions[PREDICTION_KEY]
+            )
 
         # Write detailed by example evaluation if desired
         if verbose_results_dir:
@@ -144,21 +168,23 @@ def main(
             hallucinations_csv = verbose_results_dir / (f"{clean_model_name}_{HALLUCINATIONS_SUFFIX}")
             detailed_results_csv = verbose_results_dir / (f"{clean_model_name}_{DETAILED_PREDICTIONS_CSV_SUFFIX}")
 
-            empty_test_to_write = (
-                empty_test_data.add_column("prediction", empty_test_data_predictions)
-                .add_column("num_hallucinated_phones", phone_lengths)
-                .remove_columns(["audio"])
-            )
-            empty_test_to_write.to_csv(hallucinations_csv, index=False)
+            if len(empty_test_data) > 0: 
+                empty_test_to_write = empty_test_data_predictions.add_column(
+                    "num_hallucinated_phones", phone_lengths
+                ).remove_columns(["audio"])
+                empty_test_to_write.to_csv(hallucinations_csv, index=False)
 
-            detailed_results = non_empty_test_data.add_column("prediction", predictions).remove_columns(["audio"])
-            for k in ["phone_error_rates", "phone_feature_error_rates", "feature_error_rates"]:
-                detailed_results = detailed_results.add_column(k, metrics[k])
+            if len(non_empty_test_data) > 0:
+                detailed_results = non_empty_test_data.add_column(
+                    PREDICTION_KEY, predictions[PREDICTION_KEY]
+                ).remove_columns(["audio"])
+                for k in ["phone_error_rates", "phone_feature_error_rates", "feature_error_rates"]:
+                    detailed_results = detailed_results.add_column(k, metrics[k])
 
-            if "__index_level_0__" in detailed_results.column_names:
-                detailed_results = detailed_results.remove_columns(["__index_level_0__"])
+                if "__index_level_0__" in detailed_results.column_names:
+                    detailed_results = detailed_results.remove_columns(["__index_level_0__"])
 
-            detailed_results.to_csv(detailed_results_csv, index=False)
+                detailed_results.to_csv(detailed_results_csv, index=False)
 
     # Write final metrics results for all models
     model_eval_tracker.to_csv(eval_csv)
@@ -207,6 +233,12 @@ def main_cli():
         help="Use a GPU for inference if available. Otherwise the model runs on CPUs.",
     )
 
+    parser.add_argument(
+        "--num_proc",
+        type=int,
+        help="Specify the number of CPUs for preprocessing. If unset, no multiprocessing is used.",
+    )
+
     args = parser.parse_args()
 
     buckeye_test = load_buckeye_split(args.data_dir, "test")
@@ -218,6 +250,7 @@ def main_cli():
         args.verbose_results_dir,
         args.no_space,
         args.use_gpu,
+        args.num_proc,
     )
 
 

@@ -4,6 +4,7 @@
 #SBATCH -c 4
 #SBATCH --mem=12GB
 #SBATCH -G 2
+#SBATCH --nodes=1
 #SBATCH -p gpu-preempt
 #SBATCH --time 12:00:00
 #SBATCH --constraint=25gbps

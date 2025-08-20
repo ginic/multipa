@@ -39,8 +39,9 @@ def extract_whitespace_delimited_symbols(batch: dict) -> dict:
     in the batch. Used to build vocabulary when there is tokenization present.
     """
     all_text = " ".join(batch["ipa"])
+    whitespace_symbols = [s for s in set(all_text) if s.isspace()]
     symbols = set(all_text.split())
-    return {"vocab": list(symbols)}
+    return {"vocab": list(symbols) + whitespace_symbols}
 
 
 def remove_space(batch: dict, col_key: str) -> dict:
@@ -176,7 +177,7 @@ def load_common_voice_split(
         full_dataset = full_dataset.filter(lambda batch: "ச" not in batch["sentence"], num_proc=num_proc)
 
     if quality_filter:
-        full_dataset = full_dataset.filter(lambda batch: batch["down_votes"] == 0, self.num_proc)
+        full_dataset = full_dataset.filter(lambda batch: batch["down_votes"] == 0, num_proc=num_proc)
 
     return full_dataset
 
@@ -273,7 +274,7 @@ class CorpusPreprocessor(ABC):
         self._latest_training_data_stats = {}
 
     @abstractmethod
-    def get_train_split(self) -> datasets.Dataset:
+    def get_train_split_and_vocab(self) -> tuple[datasets.Dataset, dict[str, int]]:
         pass
 
     @abstractmethod
@@ -310,6 +311,11 @@ class CorpusPreprocessor(ABC):
             )
             final_vocab = final_vocab | set(d_vocab["vocab"])
 
+        # If you don't want whitespace in the output
+        if self.is_remove_spaces:
+            logger.info("Removing whitespaces from vocabulary")
+            final_vocab = set(filter(lambda v: not v.isspace(), final_vocab))
+
         if self.vocab_resource_file is not None:
             vocab_file = importlib.resources.files("multipa.resources").joinpath(self.vocab_resource_file)
             vocab_from_file = set([line.strip() for line in vocab_file.read_text().splitlines()])
@@ -330,11 +336,6 @@ class CorpusPreprocessor(ABC):
                 )
 
             final_vocab = final_vocab | vocab_from_file
-
-        # If you don't want whitespace in the output or the data is whitespace delimited
-        # remove spaces from the vocabulary
-        if self.is_remove_spaces or self.is_whitespace_delimited:
-            final_vocab = filter(lambda v: not v.isspace(), final_vocab)
 
         vocab_dict_ipa = {v: k for k, v in enumerate(final_vocab)}
         vocab_dict_ipa[UNKNOWN_TOKEN] = len(vocab_dict_ipa)
@@ -395,7 +396,7 @@ class BuckeyePreprocessor(CorpusPreprocessor):
             num_proc,
             file_suffix,
             unused_columns=self.COLS_TO_DROP,
-            is_remove_spaces=False,
+            is_remove_spaces=True,
             vocab_resource_file=self.VOCAB_RESOURCE,
             is_whitespace_delimited=True,
         )
@@ -466,11 +467,13 @@ class BuckeyePreprocessor(CorpusPreprocessor):
         logger.info("Full train dataset size: %s", len(full_train_data))
         return full_train_data
 
-    def get_train_split(self):
+    def get_train_split_and_vocab(self):
         train_data = load_buckeye_split(self.data_dir, "train")
         full_train_data = self._filter_train_dataset(train_data)
+        # You need to create the vocabulary before removing spaces, because it's whitespace delimited
+        vocab = self.create_vocabulary(full_train_data)
         full_train_data = self.clean_ipa_transcription(full_train_data)
-        return self.remove_unused_columns(full_train_data)
+        return self.remove_unused_columns(full_train_data), vocab
 
     def get_validation_split(self) -> datasets.Dataset:
         valid_data = load_buckeye_split(self.data_dir, "validation")
@@ -550,8 +553,10 @@ class CommonVoicePreprocessor(CorpusPreprocessor):
         full_data = concatenate_common_voice(data_list)
         return self.remove_unused_columns(full_data)
 
-    def get_train_split(self):
-        return self.clean_ipa_transcription(self._get_split("train", "train", self.train_sampler))
+    def get_train_split_and_vocab(self):
+        train_dataset = self._get_split("train", "train", self.train_sampler)
+        vocab = self.create_vocabulary(train_dataset)
+        return self.clean_ipa_transcription(train_dataset), vocab
 
     def get_validation_split(self):
         return self.clean_ipa_transcription(self._get_split("valid", "validation", self.val_sampler))
@@ -603,9 +608,10 @@ class LibriSpeechPreprocessor(CorpusPreprocessor):
         dataset = dataset.shuffle(seed=sampler.seed).select(range(limit))
         return self.remove_unused_columns(dataset)
 
-    def get_train_split(self):
+    def get_train_split_and_vocab(self):
         train_data = self._get_split("train", "train.clean.100", self.train_sampler, f"en_train{self.suffix}.json")
-        return self.clean_ipa_transcription(train_data)
+        vocab = self.create_vocabulary(train_data)
+        return self.clean_ipa_transcription(train_data), vocab
 
     def get_validation_split(self):
         val_data = self._get_split("valid", "validation.clean", self.val_sampler, f"en_valid{self.suffix}.json")
