@@ -1,6 +1,6 @@
 import pandas as pd
 
-from multipa.evaluate import ModelEvaluator, clean_predictions_batch
+from multipa.evaluate import ModelEvaluator
 
 
 def test_model_evaluator(tmp_path):
