@@ -14,7 +14,7 @@ batch_size=4
 grad_acc=4
 learning_rate=3e-4
 model_dir=data/models/train_duration_1600_samples_3
-rand_seed=771
+rand_seed=603
 train_samples=1600
 
 dataset_cache=dataset_cache
