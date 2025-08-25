@@ -1,7 +1,7 @@
 #!/bin/bash
 
-#SBATCH -c 8
-#SBATCH --mem=24GB
+#SBATCH -c 6
+#SBATCH --mem=36GB
 #SBATCH -p gpu-preempt
 #SBATCH -G 4
 #SBATCH --constraint=vram40
@@ -26,7 +26,7 @@ conda activate ./env_cuda124
 
 python --version
 
-multipa-train --output_dir "$model_dir" --data_dir "$data_dir" --cache_dir "$dataset_cache" --use_gpu --num_train_epochs 10 --num_proc 8 \
+multipa-train --output_dir "$model_dir" --data_dir "$data_dir" --cache_dir "$dataset_cache" --use_gpu --num_train_epochs 10 --num_proc 6 \
     --learning_rate $learning_rate --per_device_train_batch_size $batch_size --gradient_accumulation_steps $grad_acc --mask_time_length 4 \
     --train_seed $rand_seed \
     buckeye --train_samples $train_samples --val_samples 5605
