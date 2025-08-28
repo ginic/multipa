@@ -1,14 +1,16 @@
 #!/bin/bash
 
 #SBATCH -c 8
-#SBATCH --mem=24GB
+#SBATCH --mem=36GB
 #SBATCH -p gpu-preempt
 #SBATCH -G 4
 #SBATCH --constraint=vram40
 #SBATCH --nodes=1
-#SBATCH --time 3:00:00
+#SBATCH --time 5:00:00
 #SBATCH -o %j_train_duration_20000_samples_2.out
 #SBATCH --mail-type END
+#SBATCH --exclude gpu041
+
 
 batch_size=4
 grad_acc=4

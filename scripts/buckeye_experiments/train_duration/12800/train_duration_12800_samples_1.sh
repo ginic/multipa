@@ -6,15 +6,16 @@
 #SBATCH -G 4
 #SBATCH --constraint=vram40
 #SBATCH --nodes=1
-#SBATCH --time 3:00:00
+#SBATCH --time 5:00:00
 #SBATCH -o %j_train_duration_12800_samples_1.out
 #SBATCH --mail-type END
+#SBATCH --exclude gpu041
 
 batch_size=4
 grad_acc=4
 learning_rate=3e-4
 model_dir=data/models/train_duration_12800_samples_1
-rand_seed=91
+rand_seed=93
 train_samples=12800
 
 dataset_cache=dataset_cache
