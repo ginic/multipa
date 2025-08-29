@@ -404,7 +404,7 @@ def main_cli():
 
     buckeye_subparser.add_argument(
         "--use_val_split_in_training", 
-        action="store_true"
+        action="store_true",
         help="Use this flag to include validation split in the training data"
     )
 
