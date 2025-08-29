@@ -232,7 +232,8 @@ def main_cli():
         "--mask_time_length",
         type=int,
         default=10,
-        help="Mask time length for the model. If you know your training data contains audio less than 0.2 seconds, make the mask time length small. Defaults to 10.",
+        help="Mask time length for the model. If you know your training data contains audio less than 0.2 seconds, " 
+            "make the mask time length small. Defaults to 10.",
     )
     parser.add_argument(
         "-g", "--use_gpu", action="store_true", help="Use this flag if a GPU is available for training."
@@ -384,7 +385,8 @@ def main_cli():
         "--percent_female",
         type=float,
         default=0.5,
-        help="The percentage (as float) of training examples that should come from female speakers. Defaults to 0.5",
+        help="The percentage (as float) of training examples that should come from female speakers. " 
+            "Use a negative value to turn off sampling by gender splits. Defaults to 0.5",
     )
     buckeye_subparser.add_argument(
         "-sr",
@@ -398,6 +400,18 @@ def main_cli():
         type=float,
         default=0.1,
         help="Minimum sample length for training samples data in seconds. Only used for buckeye. Defaults to 0.1.",
+    )
+
+    buckeye_subparser.add_argument(
+        "--use_val_split_in_training", 
+        action="store_true"
+        help="Use this flag to include validation split in the training data"
+    )
+
+    buckeye_subparser.add_argument(
+        "--use_test_split_in_training", 
+        action="store_true", 
+        help="Use this flag to include test split in the training data"
     )
 
     args = parser.parse_args()
@@ -438,6 +452,8 @@ def main_cli():
             max_length=args.max_length,
             speaker_restriction=args.speaker_restriction,
             percent_female=args.percent_female,
+            use_val_split_in_training=args.use_val_split_in_training,
+            use_test_split_in_training=args.use_test_split_in_training
         )
 
     elif args.corpus == COMMONVOICE_KEY:

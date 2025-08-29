@@ -126,7 +126,7 @@ def test_buckeye_preprocessor_init(buckeye_preprocessor):
 
 @pytest.mark.parametrize(
     "percent_f, expected_f, expected_m",
-    [(0.5, 5, 5), (0.7, 5, 3), (0.2, 2, 5)],
+    [(0.5, 5, 5), (0.7, 5, 3), (0.2, 2, 5), (-1, 5, 5)],
 )
 def test_buckeye_sample_gender(percent_f, expected_f, expected_m, mock_buckeye):
     buckeye_preprocessor = BuckeyePreprocessor(
