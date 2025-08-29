@@ -254,19 +254,31 @@ class CorpusPreprocessor(ABC):
         train_sampler: SimpleSampler | SubsetSampler,
         val_sampler: SimpleSampler | SubsetSampler,
         num_proc: int,
-        file_suffix: str,
         unused_columns: None | list[str] = None,
         is_remove_spaces: bool = False,
         vocab_resource_file: None | str = None,
         is_whitespace_delimited: bool = False,
     ):
+        """_summary_
+
+        Args:
+            dataset_name (str): Short identifier for the dataset
+            data_dir (str | os.PathLike): Path to directory storing preprocessed dataset in HuggingFace compatible format
+            cache_dir (str | os.PathLike): Path to desired HuggingFace cache directory
+            train_sampler (SimpleSampler | SubsetSampler): Object for sampling strategy on training data
+            val_sampler (SimpleSampler | SubsetSampler): Object for sampling strategy on validation data 
+            num_proc (int): Number of processing threads for dataset map and filter operations
+            unused_columns (None | list[str], optional): _description_. Defaults to None.
+            is_remove_spaces (bool, optional): _description_. Defaults to False.
+            vocab_resource_file (None | str, optional): _description_. Defaults to None.
+            is_whitespace_delimited (bool, optional): _description_. Defaults to False.
+        """
         self.dataset_name = dataset_name
         self.data_dir = data_dir
         self.cache_dir = cache_dir
         self.train_sampler = train_sampler
         self.val_sampler = val_sampler
         self.num_proc = num_proc
-        self.suffix = file_suffix
         self.unused_columns = unused_columns
         self.is_remove_spaces = is_remove_spaces
         self.vocab_resource_file = vocab_resource_file
@@ -374,12 +386,28 @@ class BuckeyePreprocessor(CorpusPreprocessor):
         train_sampler: SimpleSampler,
         val_sampler: SimpleSampler,
         num_proc: int,
-        file_suffix: str,
         min_length: float = 0.1,
         max_length: float = 12,
         speaker_restriction: None | list[str] = None,
         percent_female: float = 0.5,
+        use_val_split_in_training = False, 
+        use_test_split_in_training = False,
     ):
+        """_summary_
+
+        Args:
+            data_dir (str | os.PathLike): _description_
+            cache_dir (str | os.PathLike): _description_
+            train_sampler (SimpleSampler): _description_
+            val_sampler (SimpleSampler): _description_
+            num_proc (int): _description_
+            min_length (float, optional): _description_. Defaults to 0.1.
+            max_length (float, optional): _description_. Defaults to 12.
+            speaker_restriction (None | list[str], optional): _description_. Defaults to None.
+            percent_female (float, optional): _description_. Defaults to 0.5.
+            use_val_split_in_training (bool, optional): _description_. Defaults to False.
+            use_test_split_in_training (bool, optional): _description_. Defaults to False.
+        """
         self.min_length = min_length
         self.max_length = max_length
         self.percent_female = percent_female
@@ -394,7 +422,6 @@ class BuckeyePreprocessor(CorpusPreprocessor):
             train_sampler,
             val_sampler,
             num_proc,
-            file_suffix,
             unused_columns=self.COLS_TO_DROP,
             is_remove_spaces=True,
             vocab_resource_file=self.VOCAB_RESOURCE,
@@ -504,7 +531,6 @@ class CommonVoicePreprocessor(CorpusPreprocessor):
         train_sampler: SubsetSampler,
         val_sampler: SubsetSampler,
         num_proc: int,
-        file_suffix: str,
         dataset_name: str = "mozilla-foundation/common_voice_11_0",
         quality_filter: bool = True,
         is_remove_spaces: bool = False,
@@ -517,7 +543,6 @@ class CommonVoicePreprocessor(CorpusPreprocessor):
             train_sampler,
             val_sampler,
             num_proc,
-            file_suffix,
             unused_columns=self.COLS_TO_DROP,
             vocab_resource_file=self.VOCAB_RESOURCE,
             is_remove_spaces=is_remove_spaces,
@@ -578,7 +603,6 @@ class LibriSpeechPreprocessor(CorpusPreprocessor):
         train_sampler: SimpleSampler,
         val_sampler: SimpleSampler,
         num_proc: int,
-        file_suffix: str,
         is_remove_spaces: bool = False,
     ):
         super().__init__(
@@ -588,7 +612,6 @@ class LibriSpeechPreprocessor(CorpusPreprocessor):
             train_sampler,
             val_sampler,
             num_proc,
-            file_suffix,
             unused_columns=self.COLS_TO_DROP,
             vocab_resource_file=self.VOCAB_RESOURCE,
             is_remove_spaces=is_remove_spaces,
