@@ -539,10 +539,10 @@ class BuckeyePreprocessor(TrainingPreprocessor):
         train_data = load_buckeye_split(self.data_dir, "train")
 
         if self.use_val_split_in_training:
-            train_data = datasets.concatenate_datasets(train_data, load_buckeye_split(self.data_dir, "validation"))
+            train_data = datasets.concatenate_datasets([train_data, load_buckeye_split(self.data_dir, "validation")])
 
         if self.use_test_split_in_training:
-            train_data = datasets.concatenate_datasets(train_data, load_buckeye_split(self.data_dir, "test"))
+            train_data = datasets.concatenate_datasets([train_data, load_buckeye_split(self.data_dir, "test")])
                 
         full_train_data = self._filter_train_dataset(train_data)
 
