@@ -380,6 +380,13 @@ class BuckeyePreprocessor(CorpusPreprocessor):
     ]
     VOCAB_RESOURCE = "buckeye_ipa_inventory.txt"
 
+    # Keys for tracking gendered stats
+    FEMALE_SAMPLES_KEY = "train_num_female_examples"
+    FEMALE_DURATION_KEY = "train_duration_female_examples"
+    MALE_SAMPLES_KEY = "train_num_male_examples"
+    MALE_DURATION_KEY = "train_duration_male_examples"
+
+
     def __init__(
         self,
         data_dir: str | os.PathLike,
@@ -430,17 +437,43 @@ class BuckeyePreprocessor(CorpusPreprocessor):
             is_whitespace_delimited=True,
         )
 
-    def _sample_gender_subset(self, dataset, num_samples: int, seed: int, gender_value: Literal["m", "f"]):
+    def _sample_gender_subset(self, dataset:datasets.Dataset, num_samples: int, seed: int, gender_value: Literal["m", "f"]):
+        """Samples up to num_samples examples matching the specified gender value from the given dataset.
+
+        Args:
+            dataset (datasets.Dataset): The dataset from which to select samples
+            num_samples (int): An upperbound on the number of samples to include. Acutally number may be less depending on the dataset makeup.
+            seed (int): Random seed for sampling data
+            gender_value (Literal["m","f"]): The desired gender value ("m" or "f")
+
+        Returns: tuple
+            (datasets.Dataset: dataset with examples only matching desired gender, 
+            int: the actual number of examples in the dataset (might be different from num_samples),
+            float: the total duration of audio in the dataset)
+        """
         gender_examples = dataset.filter(lambda x: x["speaker_gender"] == gender_value, num_proc=self.num_proc)
-        gender_examples = gender_examples.shuffle(seed=seed).select(range(min(num_samples, len(gender_examples))))
-        logger.info("Number of examples from 'speaker_gender'='%s': %s", gender_value, len(gender_examples))
+        total_samples = min(num_samples, len(gender_examples))
+        gender_examples = gender_examples.shuffle(seed=seed).select(range(total_samples))
+        duration = sum(gender_examples["duration"])
+        logger.info("Number of examples from 'speaker_gender'='%s': %s", gender_value, total_samples)
         logger.info(
             "Total duration(seconds) of examples from 'speaker_gender'='%s': %s",
             gender_value,
-            sum(gender_examples["duration"]),
+            duration,
         )
+        return gender_examples, total_samples, duration
 
-        return gender_examples
+    def get_gender_stats(self, dataset: datasets.Dataset, gender_value: Literal["m", "f"]):
+        """Computes and returns the number of samples and total audio duration for data from 
+        speakers with the specified gender in the dataset.
+
+        Args:
+            dataset (datasets.Dataset): The dataset to compute statistics for
+            gender_value (Literal["m","f"]): The desired gender value ("m" or "f")
+        """
+        gender_examples = dataset.filter(lambda x: x["speaker_gender"] == gender_value, num_proc=self.num_proc)
+        duration = sum(gender_examples["duration"])
+        return len(gender_examples), duration
 
     def _filter_train_dataset(self, train_data: datasets.Dataset) -> datasets.Dataset:
         """Filters the training data according to the specified configuration. For Buckeye, it's important to remove
@@ -454,10 +487,7 @@ class BuckeyePreprocessor(CorpusPreprocessor):
         """
         # Clear stats from training data tracker
         for key in [
-            "train_num_female_examples",
-            "train_duration_female_examples",
-            "train_num_male_examples",
-            "train_duration_male_examples",
+            self.FEMALE_SAMPLES_KEY, self.FEMALE_DURATION_KEY, self.MALE_DURATION_KEY, self.MALE_SAMPLES_KEY
         ]:
             self._latest_training_data_stats.pop(key, None)
 
@@ -482,32 +512,40 @@ class BuckeyePreprocessor(CorpusPreprocessor):
                 "Sampling Buckeye training data by gender split with %s ratio female speakers", self.percent_female
             )
             num_female_examples = int(self.train_sampler.num_samples * self.percent_female)
-            female_examples = self._sample_gender_subset(filtered_data, num_female_examples, self.train_sampler.seed, "f")
-
-            self._latest_training_data_stats["train_num_female_examples"] = len(female_examples)
-            self._latest_training_data_stats["train_duration_female_examples"] = sum(female_examples["duration"])
+            female_examples, actual_num_female_examples, female_duration = self._sample_gender_subset(filtered_data, num_female_examples, self.train_sampler.seed, "f")
 
             num_male_examples = self.train_sampler.num_samples - num_female_examples
-            male_examples = self._sample_gender_subset(filtered_data, num_male_examples, self.train_sampler.seed, "m")
-
-            self._latest_training_data_stats["train_num_male_examples"] = len(male_examples)
-            self._latest_training_data_stats["train_duration_male_examples"] = sum(male_examples["duration"])
+            male_examples, actual_num_male_examples, male_duration = self._sample_gender_subset(filtered_data, num_male_examples, self.train_sampler.seed, "m")
 
             full_train_data = datasets.concatenate_datasets([female_examples, male_examples])
         else:
             total_samples = min(self.train_sampler.num_samples, len(filtered_data))
             full_train_data = filtered_data.shuffle(seed=self.train_sampler.seed).select(range(total_samples))
-        
+
+            actual_num_female_examples, female_duration = self.get_gender_stats(full_train_data, "f")
+            actual_num_male_examples, male_duration = self.get_gender_stats(full_train_data, "m")
+
+            # Still need to track stats on speaker data by gender
+
+        self._latest_training_data_stats[self.FEMALE_SAMPLES_KEY] = actual_num_female_examples
+        self._latest_training_data_stats[self.FEMALE_DURATION_KEY] = female_duration
+        self._latest_training_data_stats[self.MALE_SAMPLES_KEY] = actual_num_male_examples
+        self._latest_training_data_stats[self.MALE_DURATION_KEY] = male_duration
+
         logger.info("Full train dataset size: %s", len(full_train_data))
         return full_train_data
 
     def get_train_split_and_vocab(self):
         train_data = load_buckeye_split(self.data_dir, "train")
+
         if self.use_val_split_in_training:
             train_data = concatenate_datasets(train_data, load_buckeye_split(self.data_dir, "validation"))
+
         if self.use_test_split_in_training:
             train_data = concatenate_datasets(train_data, load_buckeye_split(self.data_dir, "test"))
+                
         full_train_data = self._filter_train_dataset(train_data)
+
         # You need to create the vocabulary before removing spaces, because it's whitespace delimited
         vocab = self.create_vocabulary(full_train_data)
         full_train_data = self.clean_ipa_transcription(full_train_data)
@@ -520,6 +558,9 @@ class BuckeyePreprocessor(CorpusPreprocessor):
         full_valid_data = valid_data.shuffle(seed=self.val_sampler.seed).select(range(valid_limit))
         full_valid_data = self.clean_ipa_transcription(full_valid_data)
         return self.remove_unused_columns(full_valid_data)
+    
+    
+    
 
 
 class CommonVoicePreprocessor(CorpusPreprocessor):
