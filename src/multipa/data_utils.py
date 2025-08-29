@@ -535,14 +535,14 @@ class BuckeyePreprocessor(TrainingPreprocessor):
         logger.info("Full train dataset size: %s", len(full_train_data))
         return full_train_data
 
-    def get_train_split_and_vocab(self):
+    def get_train_dataset_and_vocab(self):
         train_data = load_buckeye_split(self.data_dir, "train")
 
         if self.use_val_split_in_training:
-            train_data = concatenate_datasets(train_data, load_buckeye_split(self.data_dir, "validation"))
+            train_data = datasets.concatenate_datasets(train_data, load_buckeye_split(self.data_dir, "validation"))
 
         if self.use_test_split_in_training:
-            train_data = concatenate_datasets(train_data, load_buckeye_split(self.data_dir, "test"))
+            train_data = datasets.concatenate_datasets(train_data, load_buckeye_split(self.data_dir, "test"))
                 
         full_train_data = self._filter_train_dataset(train_data)
 
@@ -627,7 +627,7 @@ class CommonVoicePreprocessor(TrainingPreprocessor):
         full_data = concatenate_common_voice(data_list)
         return self.remove_unused_columns(full_data)
 
-    def get_train_split_and_vocab(self):
+    def get_train_dataset_and_vocab(self):
         train_dataset = self._get_split("train", "train", self.train_sampler)
         vocab = self.create_vocabulary(train_dataset)
         return self.clean_ipa_transcription(train_dataset), vocab
@@ -680,7 +680,7 @@ class LibriSpeechPreprocessor(TrainingPreprocessor):
         dataset = dataset.shuffle(seed=sampler.seed).select(range(limit))
         return self.remove_unused_columns(dataset)
 
-    def get_train_split_and_vocab(self):
+    def get_train_dataset_and_vocab(self):
         train_data = self._get_split("train", "train.clean.100", self.train_sampler, f"en_train{self.suffix}.json")
         vocab = self.create_vocabulary(train_data)
         return self.clean_ipa_transcription(train_data), vocab
