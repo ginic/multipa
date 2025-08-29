@@ -241,7 +241,7 @@ class SubsetSampler:
             raise ValueError(f"Sampling argument must match length of {self.subset_identifiers}")
 
 
-class CorpusPreprocessor(ABC):
+class TrainingPreprocessor(ABC):
     """Abstract class with defined behavior for preparing data from a specific
     source corpus for training
     """
@@ -287,7 +287,7 @@ class CorpusPreprocessor(ABC):
         self._latest_training_data_stats = {}
 
     @abstractmethod
-    def get_train_split_and_vocab(self) -> tuple[datasets.Dataset, dict[str, int]]:
+    def get_train_dataset_and_vocab(self) -> tuple[datasets.Dataset, dict[str, int]]:
         pass
 
     @abstractmethod
@@ -367,7 +367,7 @@ class CorpusPreprocessor(ABC):
         return self._latest_training_data_stats
 
 
-class BuckeyePreprocessor(CorpusPreprocessor):
+class BuckeyePreprocessor(TrainingPreprocessor):
     DATASET_NAME = "buckeye"
     COLS_TO_DROP = [
         "speaker_gender",
@@ -558,12 +558,9 @@ class BuckeyePreprocessor(CorpusPreprocessor):
         full_valid_data = valid_data.shuffle(seed=self.val_sampler.seed).select(range(valid_limit))
         full_valid_data = self.clean_ipa_transcription(full_valid_data)
         return self.remove_unused_columns(full_valid_data)
-    
-    
-    
 
 
-class CommonVoicePreprocessor(CorpusPreprocessor):
+class CommonVoicePreprocessor(TrainingPreprocessor):
     COLS_TO_DROP = [
         "accent",
         "age",
@@ -639,7 +636,7 @@ class CommonVoicePreprocessor(CorpusPreprocessor):
         return self.clean_ipa_transcription(self._get_split("valid", "validation", self.val_sampler))
 
 
-class LibriSpeechPreprocessor(CorpusPreprocessor):
+class LibriSpeechPreprocessor(TrainingPreprocessor):
     DATASET_NAME = "librispeech_asr"
     COLS_TO_DROP = [
         "speaker_id",

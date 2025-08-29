@@ -480,7 +480,7 @@ def main_cli():
     #     print("Concatenated additional data from Forvo")
 
     print("Preparing training data and creating vocabulary...")
-    full_train_data, vocab_dict_ipa = corpus_processor.get_train_split_and_vocab()
+    full_train_data, vocab_dict_ipa = corpus_processor.get_train_dataset_and_vocab()
     full_valid_data = corpus_processor.get_validation_split()
 
     # Add any stats about training data to the final report
