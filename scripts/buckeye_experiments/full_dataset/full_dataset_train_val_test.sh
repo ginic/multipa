@@ -1,7 +1,7 @@
 #!/bin/bash
 
 #SBATCH -c 4
-#SBATCH --mem=40GB
+#SBATCH --mem=48GB
 #SBATCH -p gpu-preempt
 #SBATCH -G 4
 #SBATCH --constraint=vram40
