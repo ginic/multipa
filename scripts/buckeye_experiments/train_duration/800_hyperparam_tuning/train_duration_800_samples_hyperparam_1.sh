@@ -1,20 +1,21 @@
 #!/bin/bash
 
 #SBATCH -c 8
-#SBATCH --mem=30GB
+#SBATCH --mem=36GB
 #SBATCH -p gpu-preempt
 #SBATCH -G 4
 #SBATCH --constraint=vram40
 #SBATCH --nodes=1
 #SBATCH --time 3:00:00
-#SBATCH -o %j_train_duration_800_samples_2.out
+#SBATCH -o %j_train_duration_800_samples_hyperparams_1.out
 #SBATCH --mail-type END
+#SBATCH --exclude gpu041
 
 batch_size=4
 grad_acc=2
 learning_rate=3e-4
-model_dir=data/models/train_duration_800_samples_2
-rand_seed=847
+model_dir=data/models/train_duration_800_samples_hyperparams_1
+rand_seed=92
 train_samples=800
 
 dataset_cache=dataset_cache

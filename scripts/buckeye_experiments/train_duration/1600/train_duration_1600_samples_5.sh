@@ -11,8 +11,8 @@
 #SBATCH --mail-type END
 
 batch_size=4
-grad_acc=4
-learning_rate=3e-4
+grad_acc=2
+learning_rate=6e-4
 model_dir=data/models/train_duration_1600_samples_5
 rand_seed=48
 train_samples=1600
