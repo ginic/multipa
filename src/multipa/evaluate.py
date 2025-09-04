@@ -5,13 +5,14 @@ Currently only Buckeye data is supported for evaluation.
 """
 
 import argparse
-from collections import defaultdict
+from collections import defaultdict, Counter
 from pathlib import Path
 from typing import Optional, Union
 
 import datasets
 import evaluate
-
+import ipatok
+import kaldialign
 import pandas as pd
 import panphon.distance
 import transformers
@@ -24,6 +25,51 @@ DETAILED_PREDICTIONS_CSV_SUFFIX = "detailed_predictions.csv"
 HALLUCINATIONS_SUFFIX = "hallucinations.csv"
 
 PREDICTION_KEY = "prediction"
+
+# Null symbol for kaldi align that shouldn't ever occur in IPA strings
+EPS = "***"
+
+
+def compute_edit_distance_errors(prediction, reference, use_ipa_tokenise=True, **kwargs):
+    """Compares two strings and returns counts of the substitions, deletions and insertions
+    between them.
+
+    Results are in the following format:
+    - Substitutions: dictionary mapping reference token to dict mapping substituted token to count
+    - Deletions: dictionary mapping deleted tokens to count of number of times deleted
+    - Insertions: dictionary mapping inserted token to number of times its inserted
+
+    Args:
+        prediction: _description_
+        reference: _description_
+        is_use_ipa_tokenise: _description_. Defaults to True.
+        kwargs: any arguments to pass to the ipatok tokenise function
+
+    Returns:
+        Tuple[Dict[str, Counter[str, int]], Counter[str, int], Counter[str, int]]: Substitutions, deletions, insertions
+    """
+    if use_ipa_tokenise:
+        pred_tokens = ipatok.tokenise(prediction, **kwargs)
+        ref_tokens = ipatok.tokenise(reference, **kwargs)
+    else:
+        pred_tokens = list(prediction)
+        ref_tokens = list(reference)
+
+    subs = defaultdict(Counter)
+    insertions = Counter()
+    deletions = Counter()
+
+    aligned_pairs = kaldialign.align(ref_tokens, pred_tokens, EPS)
+
+    for r, p in aligned_pairs:
+        if r == EPS:
+            insertions[p] += 1
+        elif p == EPS:
+            deletions[p] += 1
+        elif r != p:
+            subs[r][p] += 1
+
+    return subs, deletions, insertions
 
 
 class ModelEvaluator:
@@ -134,7 +180,7 @@ def main(
         print("Evaluating model:", model)
         pipe = transformers.pipeline("automatic-speech-recognition", model=model, device=selected_torch_device)
 
-        if len(non_empty_test_data) > 0: 
+        if len(non_empty_test_data) > 0:
             print("Getting predictions for audio with non-empty gold-standard transcriptions")
             predictions = datasets.Dataset.from_list(pipe(non_empty_test_data["audio"]))
             predictions = predictions.map(
@@ -168,7 +214,7 @@ def main(
             hallucinations_csv = verbose_results_dir / (f"{clean_model_name}_{HALLUCINATIONS_SUFFIX}")
             detailed_results_csv = verbose_results_dir / (f"{clean_model_name}_{DETAILED_PREDICTIONS_CSV_SUFFIX}")
 
-            if len(empty_test_data) > 0: 
+            if len(empty_test_data) > 0:
                 empty_test_to_write = empty_test_data_predictions.add_column(
                     "num_hallucinated_phones", phone_lengths
                 ).remove_columns(["audio"])

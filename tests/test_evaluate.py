@@ -1,6 +1,23 @@
 import pandas as pd
+import pytest
 
-from multipa.evaluate import ModelEvaluator
+from multipa.evaluate import ModelEvaluator, compute_edit_distance_errors
+
+
+@pytest.mark.parametrize("ref,pred,subs,dels,inserts", [("po", "bo", {"p": {"b": 1}}, {}, {})])
+def test_compute_edit_distance_errors(ref, pred, subs, dels, inserts):
+    actual_subs, actual_dels, actual_inserts = compute_edit_distance_errors(pred, ref)
+    assert actual_subs == subs
+    assert actual_dels == dels
+    assert actual_inserts == inserts
+
+
+@pytest.mark.parametrize("ref,pred,subs,dels,inserts", [("po", "bo", {"p": {"b": 1}}, {}, {})])
+def test_computes_edit_distance_no_ipa_tok(ref, pred, subs, dels, inserts):
+    actual_subs, actual_dels, actual_inserts = compute_edit_distance_errors(pred, ref, use_ipa_tokenise=False)
+    assert actual_subs == subs
+    assert actual_dels == dels
+    assert actual_inserts == inserts
 
 
 def test_model_evaluator(tmp_path):
