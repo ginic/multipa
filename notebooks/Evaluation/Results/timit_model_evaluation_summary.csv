@@ -1,0 +1,3 @@
+model,phone_error_rates,phone_feature_error_rates,feature_error_rates
+ginic/data_seed_bs64_4_wav2vec2-large-xlsr-53-buckeye-ipa,0.2881620001120856,3.8043452380952383,0.23338573509451457
+ctaguchi/wav2vec2-large-xlsr-japlmthufielta-ipa1000-ns,0.6534358846076403,6.0969907407407415,0.3028592719401012
