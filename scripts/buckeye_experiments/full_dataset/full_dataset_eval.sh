@@ -19,9 +19,6 @@ module load conda/latest
 conda activate ./env_cuda124
 
 multipa-evaluate --local_models \
- data/models/full_dataset_train_val_test/wav2vec2-large-xlsr-53-buckeye-ipa \
- data/models/full_dataset_train_val/wav2vec2-large-xlsr-53-buckeye-ipa \
- data/models/full_dataset_train_val_bs32/wav2vec2-large-xlsr-53-buckeye-ipa \
  data/models/full_dataset_train_1/wav2vec2-large-xlsr-53-buckeye-ipa \
  data/models/full_dataset_train_2/wav2vec2-large-xlsr-53-buckeye-ipa \
  data/models/full_dataset_train_3/wav2vec2-large-xlsr-53-buckeye-ipa \
