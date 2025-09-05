@@ -4,7 +4,15 @@ import pytest
 from multipa.evaluate import ModelEvaluator, compute_edit_distance_errors
 
 
-@pytest.mark.parametrize("ref,pred,subs,dels,inserts", [("po", "bo", {"p": {"b": 1}}, {}, {})])
+@pytest.mark.parametrize(
+    "ref,pred,subs,dels,inserts",
+    [
+        ("po", "bo", {"p": {"b": 1}}, {}, {}),
+        ("dʒɹɪŋk", "dɹɪnkə", {"ŋ": {"n": 1}}, {"ʒ": 1}, {"ə": 1}),
+        ("tuːt", "", {}, {"t": 2, "uː": 1}, {}),
+        ("", "tuːt", {}, {}, {"t": 2, "uː": 1}),
+    ],
+)
 def test_compute_edit_distance_errors(ref, pred, subs, dels, inserts):
     actual_subs, actual_dels, actual_inserts = compute_edit_distance_errors(pred, ref)
     assert actual_subs == subs
@@ -12,7 +20,15 @@ def test_compute_edit_distance_errors(ref, pred, subs, dels, inserts):
     assert actual_inserts == inserts
 
 
-@pytest.mark.parametrize("ref,pred,subs,dels,inserts", [("po", "bo", {"p": {"b": 1}}, {}, {})])
+@pytest.mark.parametrize(
+    "ref,pred,subs,dels,inserts",
+    [
+        ("po", "bo", {"p": {"b": 1}}, {}, {}),
+        ("dʒɹɪŋk", "dɹɪnkə", {"ŋ": {"n": 1}}, {"ʒ": 1}, {"ə": 1}),
+        ("tuːt", "", {}, {"t": 2, "u": 1, "ː": 1}, {}),
+        ("", "tuːt", {}, {}, {"t": 2, "u": 1, "ː": 1}),
+    ],
+)
 def test_computes_edit_distance_no_ipa_tok(ref, pred, subs, dels, inserts):
     actual_subs, actual_dels, actual_inserts = compute_edit_distance_errors(pred, ref, use_ipa_tokenise=False)
     assert actual_subs == subs

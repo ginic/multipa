@@ -65,7 +65,7 @@ def compute_edit_distance_errors(prediction, reference, use_ipa_tokenise=True, *
         if r == EPS:
             insertions[p] += 1
         elif p == EPS:
-            deletions[p] += 1
+            deletions[r] += 1
         elif r != p:
             subs[r][p] += 1
 
