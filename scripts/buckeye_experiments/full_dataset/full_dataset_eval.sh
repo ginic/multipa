@@ -9,9 +9,7 @@
 #SBATCH -o %j_full_dataset_eval.out
 #SBATCH --mail-type END
 
-# Sanity check that models trained correctly. The validation and test sets
-# were used in training, so these models should have very good performance metrics, 
-# but the results aren't valid as a performance benchmark. 
+# Sanity check that models trained correctly.
 
 EVAL_RESULTS_CSV=data/evaluation_results/aggregate_metrics/full_dataset_eval.csv
 DETAILED_RESULTS_DIR=data/evaluation_results/detailed_predictions
