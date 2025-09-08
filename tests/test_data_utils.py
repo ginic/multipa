@@ -21,7 +21,6 @@ def buckeye_preprocessor():
         train_sampler=SimpleSampler(10, 6),
         val_sampler=SimpleSampler(99, 4),
         num_proc=1,
-        file_suffix="buckeye",
     )
 
 
@@ -33,7 +32,6 @@ def common_voice_preprocessor():
         train_sampler=SubsetSampler(42, [2, 4], ["en", "pl"]),
         val_sampler=SubsetSampler(99, [1, 1], ["en", "pl"]),
         num_proc=1,
-        file_suffix="cv",
         is_remove_spaces=True,
     )
 
@@ -46,7 +44,6 @@ def librispeech_preprocessor():
         train_sampler=SimpleSampler(10, 6),
         val_sampler=SimpleSampler(99, 4),
         num_proc=1,
-        file_suffix="librispeech",
     )
 
 
@@ -129,7 +126,7 @@ def test_buckeye_preprocessor_init(buckeye_preprocessor):
 
 @pytest.mark.parametrize(
     "percent_f, expected_f, expected_m",
-    [(0.5, 5, 5), (0.7, 5, 3), (0.2, 2, 5)],
+    [(0.5, 5, 5), (0.7, 5, 3), (0.2, 2, 5), (-1, 5, 5)],
 )
 def test_buckeye_sample_gender(percent_f, expected_f, expected_m, mock_buckeye):
     buckeye_preprocessor = BuckeyePreprocessor(
@@ -138,7 +135,6 @@ def test_buckeye_sample_gender(percent_f, expected_f, expected_m, mock_buckeye):
         train_sampler=SimpleSampler(10, 10),
         val_sampler=SimpleSampler(99, 4),
         num_proc=1,
-        file_suffix="buckeye",
         percent_female=percent_f,
     )
     sampled = buckeye_preprocessor._filter_train_dataset(mock_buckeye)

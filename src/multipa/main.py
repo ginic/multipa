@@ -232,7 +232,8 @@ def main_cli():
         "--mask_time_length",
         type=int,
         default=10,
-        help="Mask time length for the model. If you know your training data contains audio less than 0.2 seconds, make the mask time length small. Defaults to 10.",
+        help="Mask time length for the model. If you know your training data contains audio less than 0.2 seconds, " 
+            "make the mask time length small. Defaults to 10.",
     )
     parser.add_argument(
         "-g", "--use_gpu", action="store_true", help="Use this flag if a GPU is available for training."
@@ -384,7 +385,8 @@ def main_cli():
         "--percent_female",
         type=float,
         default=0.5,
-        help="The percentage (as float) of training examples that should come from female speakers. Defaults to 0.5",
+        help="The percentage (as float) of training examples that should come from female speakers. " 
+            "Use a negative value to turn off sampling by gender splits. Defaults to 0.5",
     )
     buckeye_subparser.add_argument(
         "-sr",
@@ -398,6 +400,18 @@ def main_cli():
         type=float,
         default=0.1,
         help="Minimum sample length for training samples data in seconds. Only used for buckeye. Defaults to 0.1.",
+    )
+
+    buckeye_subparser.add_argument(
+        "--use_val_split_in_training", 
+        action="store_true",
+        help="Use this flag to include validation split in the training data"
+    )
+
+    buckeye_subparser.add_argument(
+        "--use_test_split_in_training", 
+        action="store_true", 
+        help="Use this flag to include test split in the training data"
     )
 
     args = parser.parse_args()
@@ -420,7 +434,6 @@ def main_cli():
             data_dir=args.data_dir,
             train_sampler=train_sampler,
             val_sampler=val_sampler,
-            file_suffix=args.suffix,
             num_proc=args.num_proc,
             is_remove_spaces=args.no_space,
         )
@@ -434,12 +447,13 @@ def main_cli():
             data_dir=args.data_dir,
             train_sampler=train_sampler,
             val_sampler=val_sampler,
-            file_suffix=args.suffix,
             num_proc=args.num_proc,
             min_length=args.min_length,
             max_length=args.max_length,
             speaker_restriction=args.speaker_restriction,
             percent_female=args.percent_female,
+            use_val_split_in_training=args.use_val_split_in_training,
+            use_test_split_in_training=args.use_test_split_in_training
         )
 
     elif args.corpus == COMMONVOICE_KEY:
@@ -451,7 +465,6 @@ def main_cli():
             data_dir=args.data_dir,
             train_sampler=train_sampler,
             val_sampler=val_sampler,
-            file_suffix=args.suffix,
             num_proc=args.num_proc,
             quality_filter=args.quality_filter,
             is_remove_spaces=args.no_space,
@@ -466,9 +479,8 @@ def main_cli():
     #     common_voice_valid = concatenate_datasets([common_voice_valid, new_ds["test"]])
     #     print("Concatenated additional data from Forvo")
 
-    # Remove unnecessary columns - have to do this using remove_columns because select_columns wasn't available in older HF versions
     print("Preparing training data and creating vocabulary...")
-    full_train_data, vocab_dict_ipa = corpus_processor.get_train_split_and_vocab()
+    full_train_data, vocab_dict_ipa = corpus_processor.get_train_dataset_and_vocab()
     full_valid_data = corpus_processor.get_validation_split()
 
     # Add any stats about training data to the final report
@@ -611,7 +623,6 @@ def main_cli():
         # optim="adafactor", #Can use if memory is a problem, but convergence might be slower
         num_train_epochs=args.num_train_epochs,
         fp16=False,  # False to keep memory usage down
-        # Defaults are fine for logging and evaluation, but if you'd like to save time, you can
         evaluation_strategy="epoch",
         save_strategy="epoch",
         # save_steps=500,
