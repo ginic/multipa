@@ -377,7 +377,7 @@ def main_cli():
     )
 
     parser.add_argument(
-        "-e",
+        "-ed",
         "--edit_dist_dir",
         type=Path,
         help="If desired, specify a path to a directory for storing by-model edit distance results, 3 CSVs for each model: one for substitions, insertions and deletions",
