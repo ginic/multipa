@@ -7,7 +7,7 @@ Currently only Buckeye data is supported for evaluation.
 import argparse
 from collections import defaultdict, Counter
 from pathlib import Path
-from typing import Optional, Union
+from typing import Optional, Union, Any
 
 import datasets
 import evaluate
@@ -25,12 +25,16 @@ DETAILED_PREDICTIONS_CSV_SUFFIX = "detailed_predictions.csv"
 HALLUCINATIONS_SUFFIX = "hallucinations.csv"
 
 PREDICTION_KEY = "prediction"
+PER_KEY = "phone_error_rates"
+PFER_KEY = "phone_feature_error_rates"
+FER_KEY = "feature_error_rates"
+HALLUCITATIONS_KEY = "num_hallucinations"
 
 # Null symbol for kaldi align that shouldn't ever occur in IPA strings
 EPS = "***"
 
 
-def compute_edit_distance_errors(prediction, reference, use_ipa_tokenise=True, **kwargs):
+def compute_edit_distance_errors(prediction: str, reference: str, use_ipa_tokenise: bool = True, **kwargs):
     """Compares two strings and returns counts of the substitions, deletions and insertions
     between them.
 
@@ -46,7 +50,7 @@ def compute_edit_distance_errors(prediction, reference, use_ipa_tokenise=True, *
         kwargs: any arguments to pass to the ipatok tokenise function
 
     Returns:
-        Tuple[Dict[str, Counter[str, int]], Counter[str, int], Counter[str, int]]: Substitutions, deletions, insertions
+        tuple[Counter[tuple[str, str]], Counter[str], Counter[str]: Substitutions, deletions, insertions
     """
     if use_ipa_tokenise:
         pred_tokens = ipatok.tokenise(prediction, **kwargs)
@@ -55,7 +59,7 @@ def compute_edit_distance_errors(prediction, reference, use_ipa_tokenise=True, *
         pred_tokens = list(prediction)
         ref_tokens = list(reference)
 
-    subs = defaultdict(Counter)
+    subs = Counter()
     insertions = Counter()
     deletions = Counter()
 
@@ -67,9 +71,17 @@ def compute_edit_distance_errors(prediction, reference, use_ipa_tokenise=True, *
         elif p == EPS:
             deletions[r] += 1
         elif r != p:
-            subs[r][p] += 1
+            subs[(r, p)] += 1
 
     return subs, deletions, insertions
+
+
+def collate_edit_distances(edit_dist_counter: list[Counter[Any]]) -> Counter[Any]:
+    final_counts = Counter()
+    for c in edit_dist_counter:
+        final_counts += c
+
+    return final_counts
 
 
 class ModelEvaluator:
@@ -79,12 +91,55 @@ class ModelEvaluator:
     pfer_key = "mean_phone_feature_error_rate"
     fer_key = "mean_feature_error_rate"
     phone_hallucinations_key = "total_phone_hallucinations"
+    substitutions_key = "substitutions"
+    deletions_key = "deletions"
+    insertions_key = "insertions"
 
-    def __init__(self):
+    def __init__(self, use_ipa_tokenise: bool = True):
+        """Configure distance calculations and save results for each model
+
+        Args:
+            use_ipa_tokenise: Set as True to tokenise IPA phonemes before edit distance calculations or False
+                to compute edit distance at the character level. Defaults to True.
+        """
         self.distance_computer = panphon.distance.Distance()
         # Final results will have these keys
         # {model name -> {metric_key: metric_value}}
         self.results_to_write = defaultdict(dict)
+        self.use_ipa_tokenise = use_ipa_tokenise
+
+    def eval_edit_distances(self, model_name, predictions, references):
+        # Compute errors for each example
+        subs, deletions, inserts = [], [], []
+
+        for p, r in zip(predictions, references):
+            s, d, i = compute_edit_distance_errors(p, r, use_ipa_tokenise=self.use_ipa_tokenise)
+            subs.append(s)
+            deletions.append(d)
+            inserts.append(i)
+
+        # Save totals for the model
+        total_subs = collate_edit_distances(subs)
+        total_deletions = collate_edit_distances(deletions)
+        total_inserts = collate_edit_distances(inserts)
+        for k, curr_counts in [
+            (ModelEvaluator.substitutions_key, total_subs),
+            (ModelEvaluator.deletions_key, total_deletions),
+            (ModelEvaluator.insertions_key, total_inserts),
+        ]:
+            if model_name in self.results_to_write and k in self.results_to_write[model_name]:
+                prev_counts = self.results_to_write[model_name][k]
+                self.results_to_write[model_name][k] = collate_edit_distances([curr_counts, prev_counts])
+            else:
+                self.results_to_write[model_name][k] = curr_counts
+
+        # Return by example results
+        edit_dist_dict = {
+            ModelEvaluator.substitutions_key: subs,
+            ModelEvaluator.deletions_key: deletions,
+            ModelEvaluator.insertions_key: inserts,
+        }
+        return edit_dist_dict
 
     def eval_non_empty_transcriptions(self, model_name, predictions, references):
         """Compare the predictions and gold-standard references for a model,
@@ -94,16 +149,24 @@ class ModelEvaluator:
         metrics = PHONE_ERRORS_EVALUATOR.compute(predictions=predictions, references=references)
         for k in [ModelEvaluator.per_key, ModelEvaluator.pfer_key, ModelEvaluator.fer_key]:
             self.results_to_write[model_name][k] = metrics[k]
+
+        edit_dist_dict = self.eval_edit_distances(model_name, predictions, references)
+        metrics.update(edit_dist_dict)
         return metrics
 
     def eval_empty_transcriptions(self, model_name, predictions):
         """Count number of phone hallucinations for this model and save to write later.
         Returns the detailed evaluation results as a list with one entry per prediction.
         """
+        # Insertions according to panphon's feature model
         phone_lengths = [len(self.distance_computer.fm.ipa_segs(p)) for p in predictions]
         total_phone_hallucinations = sum(phone_lengths)
         self.results_to_write[model_name][ModelEvaluator.phone_hallucinations_key] = total_phone_hallucinations
-        return phone_lengths
+
+        # Insertions according to edit distance
+        edit_dist_dict = self.eval_edit_distances(model_name, predictions, [""] * len(predictions))
+        edit_dist_dict[HALLUCITATIONS_KEY] = phone_lengths
+        return edit_dist_dict
 
     def to_csv(self, csv_path):
         """Write the evaluation results stored in this object to the specified CSV file"""
