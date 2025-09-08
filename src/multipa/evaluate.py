@@ -1,13 +1,13 @@
 """Evaluates given models on test data, writing evaluation metrics in a summary CSV file.
 Detailed results on the test data may also be written if desired.
 
-Currently only Buckeye data is supported for evaluation.
+Currently only Buckeye test split data is supported for evaluation.
 """
 
 import argparse
 from collections import defaultdict, Counter
 from pathlib import Path
-from typing import Optional, Union, Any
+from typing import Any
 
 import datasets
 import evaluate
@@ -24,6 +24,7 @@ PHONE_ERRORS_EVALUATOR = evaluate.load("ginic/phone_errors")
 DETAILED_PREDICTIONS_CSV_SUFFIX = "detailed_predictions.csv"
 HALLUCINATIONS_SUFFIX = "hallucinations.csv"
 
+# Headers for detailed predictions CSV outputs
 PREDICTION_KEY = "prediction"
 PER_KEY = "phone_error_rates"
 PFER_KEY = "phone_feature_error_rates"
@@ -32,6 +33,15 @@ HALLUCITATIONS_KEY = "num_hallucinations"
 
 # Null symbol for kaldi align that shouldn't ever occur in IPA strings
 EPS = "***"
+
+
+def clean_model_name(model_name: str | Path) -> str:
+    """Removes path characters from models names or directories.
+
+    Args:
+        model_name: str, name of a model, usually from HuggingFace
+    """
+    return str(model_name).replace("/", "_").replace("\\", "_")
 
 
 def compute_edit_distance_errors(prediction: str, reference: str, use_ipa_tokenise: bool = True, **kwargs):
@@ -168,11 +178,38 @@ class ModelEvaluator:
         edit_dist_dict[HALLUCITATIONS_KEY] = phone_lengths
         return edit_dist_dict
 
-    def to_csv(self, csv_path):
-        """Write the evaluation results stored in this object to the specified CSV file"""
+    def to_csv(self, csv_path: Path | str):
+        """Write the aggregate evaluation results stored in this object to the specified CSV file.
+        Each model is a row, with aggregate (average or total) metrics stored per column
+        """
         df = pd.DataFrame.from_dict(self.results_to_write, orient="index")
         df.index.name = ModelEvaluator.model_key
         df.to_csv(csv_path)
+
+    def write_edit_distance_results(self, model_name: str | Path, directory: Path):
+        """Writes counts of edit distance errors by symbol to CSV files.
+        Each model will have 3 corresponding CSVs, one each for subsitutions, deletions and insertions.
+
+        Args:
+            model_name: The name of the model being evaluated
+            directory: The desired output directory where CSV files will be written
+        """
+        csv_base_name = clean_model_name(model_name)
+        for k in [ModelEvaluator.deletions_key, ModelEvaluator.insertions_key]:
+            count_col = f"total_{k}"
+            edit_dist_df = pd.DataFrame.from_records(
+                self.results_to_write[model_name][k].items(), columns=["symbol", count_col]
+            )
+            edit_dist_df.sort_values(by=count_col, ascending=False, inplace=True)
+            edit_dist_df.to_csv(directory / f"{csv_base_name}_{k}.csv", index=False)
+
+        subs_col = f"total_{ModelEvaluator.substitutions_key}"
+        substitutions_df = pd.DataFrame.from_records(
+            [(s[0], s[1], v) for s, v in self.results_to_write[model_name][ModelEvaluator.substitutions_key].items()],
+            columns=["original", "substitution", subs_col],
+        )
+        substitutions_df.sort_values(by=subs_col, inplace=True)
+        substitutions_df.to_csv(directory / f"{csv_base_name}_{ModelEvaluator.substitutions_key}.csv", index=False)
 
 
 def preprocess_test_data(test_dataset: datasets.Dataset, is_remove_space: bool = False, num_proc: int | None = None):
@@ -214,13 +251,14 @@ def get_torch_device(use_gpu: bool = False):
 
 def main(
     input_data: datasets.Dataset,
-    eval_csv: Union[Path, str],
-    local_models: Optional[list[Path]] = None,
-    hf_models: Optional[list[str]] = None,
-    verbose_results_dir: Optional[Path] = None,
+    eval_csv: Path | str,
+    local_models: list[Path] | None = None,
+    hf_models: list[str] | None = None,
+    verbose_results_dir: Path | None = None,
     is_remove_space: bool = False,
     use_gpu: bool = False,
     num_proc: int | None = None,
+    edit_dist_dir: Path | None = None,
 ):
     if local_models is None:
         local_models = []
@@ -269,13 +307,20 @@ def main(
                 model, empty_test_data_predictions[PREDICTION_KEY]
             )
 
+        # Write by-model edit distance errors with counts
+        if edit_dist_dir:
+            print("Writing edit distance results to", edit_dist_dir)
+            edit_dist_dir.mkdir(parents=True, exist_ok=True)
+            model_eval_tracker.write_edit_distance_results(model, edit_dist_dir)
+
         # Write detailed by example evaluation if desired
         if verbose_results_dir:
+            print("Writing detailed transcription predictions and metrics to", verbose_results_dir)
+            clean_model_id = clean_model_name(model)
             verbose_results_dir.mkdir(parents=True, exist_ok=True)
             # Take file separators out of model name
-            clean_model_name = str(model).replace("/", "_").replace("\\", "_")
-            hallucinations_csv = verbose_results_dir / (f"{clean_model_name}_{HALLUCINATIONS_SUFFIX}")
-            detailed_results_csv = verbose_results_dir / (f"{clean_model_name}_{DETAILED_PREDICTIONS_CSV_SUFFIX}")
+            hallucinations_csv = verbose_results_dir / (f"{clean_model_id}_{HALLUCINATIONS_SUFFIX}")
+            detailed_results_csv = verbose_results_dir / (f"{clean_model_id}_{DETAILED_PREDICTIONS_CSV_SUFFIX}")
 
             if len(empty_test_data) > 0:
                 empty_test_to_write = empty_test_data_predictions.add_column(
@@ -295,7 +340,7 @@ def main(
 
                 detailed_results.to_csv(detailed_results_csv, index=False)
 
-    # Write final metrics results for all models
+    # Write final aggregate metrics results for all models
     model_eval_tracker.to_csv(eval_csv)
 
 
@@ -328,7 +373,14 @@ def main_cli():
         "-v",
         "--verbose_results_dir",
         type=Path,
-        help="Path to folder to dump all transcriptions to for later inspection.",
+        help="If desired, specify a path to a directory to dump by-model transcriptions with by-example performance metrics to for later inspection if desired. For each model, one CSV for detailed predictions and one for hallucinations (audio without speech, but where transcripts) are created.",
+    )
+
+    parser.add_argument(
+        "-e",
+        "--edit_dist_dir",
+        type=Path,
+        help="If desired, specify a path to a directory for storing by-model edit distance results, 3 CSVs for each model: one for substitions, insertions and deletions",
     )
 
     parser.add_argument(
@@ -360,6 +412,7 @@ def main_cli():
         args.no_space,
         args.use_gpu,
         args.num_proc,
+        args.edit_dist_dir,
     )
 
 
