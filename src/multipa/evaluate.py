@@ -198,7 +198,7 @@ class ModelEvaluator:
         for k in [ModelEvaluator.deletions_key, ModelEvaluator.insertions_key]:
             count_col = f"total_{k}"
             edit_dist_df = pd.DataFrame.from_records(
-                self.results_to_write[model_name][k].items(), columns=["symbol", count_col]
+                list(self.results_to_write[model_name][k].items()), columns=["symbol", count_col]
             )
             edit_dist_df.sort_values(by=count_col, ascending=False, inplace=True)
             edit_dist_df.to_csv(directory / f"{csv_base_name}_{k}.csv", index=False)
@@ -208,7 +208,7 @@ class ModelEvaluator:
             [(s[0], s[1], v) for s, v in self.results_to_write[model_name][ModelEvaluator.substitutions_key].items()],
             columns=["original", "substitution", subs_col],
         )
-        substitutions_df.sort_values(by=subs_col, inplace=True)
+        substitutions_df.sort_values(by=subs_col, inplace=True, ascending=False)
         substitutions_df.to_csv(directory / f"{csv_base_name}_{ModelEvaluator.substitutions_key}.csv", index=False)
 
 
@@ -341,6 +341,7 @@ def main(
                 detailed_results.to_csv(detailed_results_csv, index=False)
 
     # Write final aggregate metrics results for all models
+    eval_csv.parent.mkdir(exist_ok=True, parents=True)
     model_eval_tracker.to_csv(eval_csv)
 
 
