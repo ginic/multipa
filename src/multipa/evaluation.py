@@ -29,7 +29,7 @@ PREDICTION_KEY = "prediction"
 PER_KEY = "phone_error_rates"
 PFER_KEY = "phone_feature_error_rates"
 FER_KEY = "feature_error_rates"
-HALLUCITATIONS_KEY = "panphone_phone_hallucinations"  # Computed by panphone
+HALLUCINATIONS_KEY = "panphone_phone_hallucinations"  # Computed by panphone
 
 # Null symbol for kaldi align that shouldn't ever occur in IPA strings
 EPS = "***"
