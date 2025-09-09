@@ -151,7 +151,7 @@ class ModelEvaluator:
         }
         return edit_dist_dict
 
-    def eval_non_empty_transcriptions(self, model_name, predictions, references):
+    def eval_non_empty_transcriptions(self, model_name, predictions, references) -> dict[str, list[Any]]:
         """Compare the predictions and gold-standard references for a model,
         then add results to model results tracker.
         Returns the full detailed evaluation results as a dictionary.
@@ -249,9 +249,71 @@ def get_torch_device(use_gpu: bool = False):
     return torch.device("cpu")
 
 
+def write_detailed_hallucination_results(
+    verbose_results_dir: Path,
+    clean_model_id: str,
+    empty_test_data_predictions: datasets.Dataset,
+    hallucinations_with_edit_dist: dict[str, list[Any]],
+):
+    hallucinations_csv = verbose_results_dir / (f"{clean_model_id}_{HALLUCINATIONS_SUFFIX}")
+
+    empty_test_to_write = empty_test_data_predictions.add_column(
+        HALLUCINATIONS_KEY, hallucinations_with_edit_dist[ModelEvaluator.phone_hallucinations_key]
+    )
+    empty_test_to_write = empty_test_to_write.add_column(
+        ModelEvaluator.insertions_key, hallucinations_with_edit_dist[ModelEvaluator.insertions_key]
+    )
+    empty_test_to_write.to_csv(hallucinations_csv, index=False)
+
+
+def write_detailed_prediction_results(
+    verbose_results_dir: Path,
+    clean_model_id: str,
+    non_empty_test_data: datasets.Dataset,
+    predictions: datasets.Dataset,
+    detailed_metrics: dict[str, list[Any]],
+):
+    detailed_results_csv = verbose_results_dir / (f"{clean_model_id}_{DETAILED_PREDICTIONS_CSV_SUFFIX}")
+
+    detailed_results = non_empty_test_data.add_column(PREDICTION_KEY, predictions[PREDICTION_KEY])
+    for k in [
+        PER_KEY,
+        PFER_KEY,
+        FER_KEY,
+        ModelEvaluator.deletions_key,
+        ModelEvaluator.insertions_key,
+    ]:
+        detailed_results = detailed_results.add_column(k, detailed_metrics[k])
+
+    detailed_results = detailed_results.add_column(
+        ModelEvaluator.substitutions_key, [str(d) for d in detailed_metrics]
+    )
+
+    if "__index_level_0__" in detailed_results.column_names:
+        detailed_results = detailed_results.remove_columns(["__index_level_0__"])
+
+    detailed_results.to_csv(detailed_results_csv, index=False)
+
+
+def get_clean_predictions(
+    audio_dataset: datasets.Dataset,
+    transformer_pipe: transformers.Pipeline,
+    num_proc: int | None = None,
+    audio_key: str = "audio",
+    text_key: str = "text",
+    is_remove_space: bool = True,
+):
+    predictions_dataset = datasets.Dataset.from_list(transformer_pipe(audio_dataset[audio_key]))
+    predictions_dataset = predictions_dataset.map(
+        lambda x: clean_text(x, text_key=text_key, is_remove_space=is_remove_space), num_proc=num_proc
+    )
+    predictions_dataset = predictions_dataset.rename_column(text_key, PREDICTION_KEY)
+    return predictions_dataset
+
+
 def main(
     input_data: datasets.Dataset,
-    eval_csv: Path | str,
+    eval_csv: Path,
     local_models: list[Path] | None = None,
     hf_models: list[str] | None = None,
     verbose_results_dir: Path | None = None,
@@ -267,32 +329,33 @@ def main(
 
     print("Loading test data")
     non_empty_test_data, empty_test_data = preprocess_test_data(input_data, is_remove_space, num_proc)
-    print("Number of test examples with NON-empty transcriptions:", len(non_empty_test_data))
-    print(non_empty_test_data)
+    print("Test dataset with NON-empty transcriptions:", non_empty_test_data)
 
-    print("Number of test examples with empty transcriptions:", len(empty_test_data))
-    print(empty_test_data)
+    print("Test dataset with empty transcriptions:", empty_test_data)
 
     model_eval_tracker = ModelEvaluator()
 
     selected_torch_device = get_torch_device(use_gpu)
+
+    if verbose_results_dir:
+        verbose_results_dir.mkdir(parents=True, exist_ok=True)
+        print("Detailed transcription predictions and metrics will be written to", verbose_results_dir)
+
+    if edit_dist_dir:
+        edit_dist_dir.mkdir(parents=True, exist_ok=True)
+        print("Edit distance results will be written to", edit_dist_dir)
 
     for model in local_models + hf_models:
         print("Evaluating model:", model)
         pipe = transformers.pipeline("automatic-speech-recognition", model=model, device=selected_torch_device)
 
         clean_model_id = clean_model_name(model)
-        if verbose_results_dir:
-            verbose_results_dir.mkdir(parents=True, exist_ok=True)
-            print("Detailed transcription predictions and metrics will be written to", verbose_results_dir)
 
         if len(non_empty_test_data) > 0:
             print("Getting predictions for audio with non-empty gold-standard transcriptions")
-            predictions = datasets.Dataset.from_list(pipe(non_empty_test_data["audio"]))
-            predictions = predictions.map(
-                lambda x: clean_text(x, text_key="text", is_remove_space=is_remove_space), num_proc=num_proc
+            predictions = get_clean_predictions(
+                non_empty_test_data, pipe, num_proc=num_proc, is_remove_space=is_remove_space
             )
-            predictions = predictions.rename_column("text", PREDICTION_KEY)
             print("Predictions data preview:")
             print(predictions[0])
 
@@ -302,67 +365,32 @@ def main(
             )
 
             if verbose_results_dir:
-                detailed_results_csv = verbose_results_dir / (f"{clean_model_id}_{DETAILED_PREDICTIONS_CSV_SUFFIX}")
-                print("Writing detailed results for", model, "to", detailed_results_csv)
-                detailed_results = non_empty_test_data.add_column(
-                    PREDICTION_KEY, predictions[PREDICTION_KEY]
-                ).remove_columns(["audio"])
-                for k in [
-                    "phone_error_rates",
-                    "phone_feature_error_rates",
-                    "feature_error_rates",
-                    ModelEvaluator.substitutions_key,
-                    ModelEvaluator.deletions_key,
-                    ModelEvaluator.insertions_key,
-                ]:
-                    detailed_results = detailed_results.add_column(k, metrics[k])
-
-                if "__index_level_0__" in detailed_results.column_names:
-                    detailed_results = detailed_results.remove_columns(["__index_level_0__"])
-
-                detailed_results.to_csv(detailed_results_csv, index=False)
-                # Free up memory after results written
-                del detailed_results
+                print("Writing detailed predictions metrics for", model, "to", verbose_results_dir)
+                write_detailed_prediction_results(
+                    verbose_results_dir, clean_model_id, non_empty_test_data, predictions, metrics
+                )
 
         if len(empty_test_data) > 0:
             print("Getting predictions for audio with empty gold-standard transcriptions")
-            empty_test_data_predictions = datasets.Dataset.from_list(pipe(empty_test_data["audio"]))
-            empty_test_data_predictions = empty_test_data_predictions.map(
-                lambda x: clean_text(x, text_key="text", is_remove_space=is_remove_space), num_proc=num_proc
+            empty_test_data_predictions = get_clean_predictions(
+                empty_test_data, pipe, num_proc=num_proc, is_remove_space=is_remove_space
             )
-            empty_test_data_predictions = empty_test_data_predictions.rename_column("text", PREDICTION_KEY)
+            print("Predictions for hallucinations data preview:")
+            print(empty_test_data_predictions[0])
+
             hallucinations_with_edit_dist = model_eval_tracker.eval_empty_transcriptions(
                 model, empty_test_data_predictions[PREDICTION_KEY]
             )
 
             if verbose_results_dir:
-                hallucinations_csv = verbose_results_dir / (f"{clean_model_id}_{HALLUCINATIONS_SUFFIX}")
-                print("Writing hallucination results for", model, "to", hallucinations_csv)
-                empty_test_to_write = empty_test_data_predictions.remove_columns(["audio"])
-                empty_test_to_write = empty_test_to_write.add_column(
-                    HALLUCINATIONS_KEY, hallucinations_with_edit_dist[ModelEvaluator.phone_hallucinations_key]
+                print("Writing detailed hallucination results for", model, "to", verbose_results_dir)
+                write_detailed_hallucination_results(
+                    verbose_results_dir, clean_model_id, empty_test_data_predictions, hallucinations_with_edit_dist
                 )
-                empty_test_to_write = empty_test_to_write.add_column(
-                    ModelEvaluator.insertions_key, hallucinations_with_edit_dist[ModelEvaluator.insertions_key]
-                )
-                empty_test_to_write.to_csv(hallucinations_csv, index=False)
-                # Free up memory after results written
-                del hallucinations_with_edit_dist
 
         # Write by-model edit distance errors with counts
         if edit_dist_dir:
-            print("Writing edit distance results to", edit_dist_dir)
-            edit_dist_dir.mkdir(parents=True, exist_ok=True)
             model_eval_tracker.write_edit_distance_results(model, edit_dist_dir)
-
-        # Write detailed by example evaluation if desired
-        if verbose_results_dir:
-            print("Writing detailed transcription predictions and metrics to", verbose_results_dir)
-            clean_model_id = clean_model_name(model)
-
-            # Take file separators out of model name
-            hallucinations_csv = verbose_results_dir / (f"{clean_model_id}_{HALLUCINATIONS_SUFFIX}")
-            detailed_results_csv = verbose_results_dir / (f"{clean_model_id}_{DETAILED_PREDICTIONS_CSV_SUFFIX}")
 
     # Write final aggregate metrics results for all models
     eval_csv.parent.mkdir(exist_ok=True, parents=True)

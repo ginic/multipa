@@ -1,7 +1,7 @@
 import pandas as pd
 import pytest
 
-from multipa.evaluate import ModelEvaluator, compute_edit_distance_errors
+from multipa.evaluation import ModelEvaluator, compute_edit_distance_errors
 
 
 @pytest.mark.parametrize(
@@ -70,7 +70,7 @@ def test_model_evaluator(tmp_path):
 
     hallucinations = model_eval.eval_empty_transcriptions("test_model", prediction)
     assert hallucinations == {
-        "num_hallucinations": [2],
+        "panphone_phone_hallucinations": [2],
         "insertions": [{"b": 1, "o": 1}],
         "substitutions": [{}],
         "deletions": [{}],

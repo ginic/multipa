@@ -76,7 +76,7 @@ gpu = [
 [project.scripts]
 multipa-preprocess = "multipa:preprocess.main_cli"
 multipa-train = "multipa:main.main_cli"
-multipa-evaluate = "multipa:evaluate.main_cli"
+multipa-evaluate = "multipa:evaluation.main_cli"
 
 [tools.setuptools]
 include-package-data = true
