@@ -175,7 +175,7 @@ class ModelEvaluator:
 
         # Insertions according to edit distance
         edit_dist_dict = self.eval_edit_distances(model_name, predictions, [""] * len(predictions))
-        edit_dist_dict[HALLUCITATIONS_KEY] = phone_lengths
+        edit_dist_dict[HALLUCINATIONS_KEY] = phone_lengths
         return edit_dist_dict
 
     def to_csv(self, csv_path: Path | str):
@@ -249,6 +249,26 @@ def get_torch_device(use_gpu: bool = False):
     return torch.device("cpu")
 
 
+def drop_extra_csv_output_columns(
+    dataset: datasets.Dataset, extra_columns: list[str] | None = None
+) -> datasets.Dataset:
+    """Removes the specified columns from dataset in place.
+
+    Args:
+        dataset: HuggingFace dataset to drop columns from
+        extra_columns: Column names to drop. Defaults to ["audio", "__index_level_0__"] if not specified
+
+    Returns:
+        dataset with columns removed
+    """
+    if extra_columns is None:
+        extra_columns = ["audio", "__index_level_0__"]
+    for c in extra_columns:
+        dataset = dataset.remove_columns(c)
+
+    return dataset
+
+
 def write_detailed_hallucination_results(
     verbose_results_dir: Path,
     clean_model_id: str,
@@ -261,8 +281,10 @@ def write_detailed_hallucination_results(
         HALLUCINATIONS_KEY, hallucinations_with_edit_dist[ModelEvaluator.phone_hallucinations_key]
     )
     empty_test_to_write = empty_test_to_write.add_column(
-        ModelEvaluator.insertions_key, hallucinations_with_edit_dist[ModelEvaluator.insertions_key]
+        ModelEvaluator.insertions_key,
+        [str(dict(s)) for s in hallucinations_with_edit_dist[ModelEvaluator.insertions_key]],
     )
+    empty_test_to_write = drop_extra_csv_output_columns(empty_test_to_write)
     empty_test_to_write.to_csv(hallucinations_csv, index=False)
 
 
@@ -276,22 +298,15 @@ def write_detailed_prediction_results(
     detailed_results_csv = verbose_results_dir / (f"{clean_model_id}_{DETAILED_PREDICTIONS_CSV_SUFFIX}")
 
     detailed_results = non_empty_test_data.add_column(PREDICTION_KEY, predictions[PREDICTION_KEY])
-    for k in [
-        PER_KEY,
-        PFER_KEY,
-        FER_KEY,
-        ModelEvaluator.deletions_key,
-        ModelEvaluator.insertions_key,
-    ]:
+    for k in [PER_KEY, PFER_KEY, FER_KEY]:
         detailed_results = detailed_results.add_column(k, detailed_metrics[k])
 
-    detailed_results = detailed_results.add_column(
-        ModelEvaluator.substitutions_key, [str(d) for d in detailed_metrics]
-    )
+    # These are stored as counter objects and need to be converted to dict strings before adding columns
+    # This is a bit hacky, but it the output should just be for manual inspection
+    for k in [ModelEvaluator.deletions_key, ModelEvaluator.insertions_key, ModelEvaluator.substitutions_key]:
+        detailed_results = detailed_results.add_column(k, [str(dict(d)) for d in detailed_metrics[k]])
 
-    if "__index_level_0__" in detailed_results.column_names:
-        detailed_results = detailed_results.remove_columns(["__index_level_0__"])
-
+    detailed_results = drop_extra_csv_output_columns(detailed_results)
     detailed_results.to_csv(detailed_results_csv, index=False)
 
 
@@ -303,6 +318,20 @@ def get_clean_predictions(
     text_key: str = "text",
     is_remove_space: bool = True,
 ):
+    """Predicts transcriptions for the audio dataset using the transform pipeline, then
+    puts the clean transcription text in the "prediction" column
+
+    Args:
+        audio_dataset: HuggingFace format dataset with "audio" column
+        transformer_pipe: HuggingFace speech recognition pipeline
+        num_proc: Number of processors for map functions. Defaults to None.
+        audio_key: Column storing audio in dataset. Defaults to "audio".
+        text_key: Column where transcriptions are put by the pipeline object. Defaults to "text".
+        is_remove_space: Whether or not to remove spaces from transcriptions. Defaults to True.
+
+    Returns:
+        datasets.Dataset with clean transcription text in "prediction"
+    """
     predictions_dataset = datasets.Dataset.from_list(transformer_pipe(audio_dataset[audio_key]))
     predictions_dataset = predictions_dataset.map(
         lambda x: clean_text(x, text_key=text_key, is_remove_space=is_remove_space), num_proc=num_proc
