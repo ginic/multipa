@@ -1,0 +1,5 @@
+model,mean_phone_error_rate,mean_phone_feature_error_rate,mean_feature_error_rate,substitutions,insertions,deletions
+ginic/data_seed_bs64_1_wav2vec2-large-xlsr-53-buckeye-ipa,0.2798047548788091,4.2596885869921906,0.16216627546113999,24498,9949,11814
+ginic/data_seed_bs64_2_wav2vec2-large-xlsr-53-buckeye-ipa,0.2957377448180856,4.477062413860996,0.1608337197981845,24719,9509,13632
+ginic/data_seed_bs64_3_wav2vec2-large-xlsr-53-buckeye-ipa,0.2972010953821975,4.407166765111242,0.16015629169772164,25444,10805,11886
+ginic/data_seed_bs64_4_wav2vec2-large-xlsr-53-buckeye-ipa,0.28605657314770727,4.338690358994553,0.16670311406127816,25028,9935,12253
