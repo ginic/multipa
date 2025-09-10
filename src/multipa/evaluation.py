@@ -134,7 +134,7 @@ class ModelEvaluator:
             deletions.append(d)
             inserts.append(i)
 
-        # Save totals for the model
+        # Save totals for each symbol edit for the current model
         total_subs = collate_edit_distances(subs)
         total_deletions = collate_edit_distances(deletions)
         total_inserts = collate_edit_distances(inserts)
@@ -149,7 +149,7 @@ class ModelEvaluator:
             else:
                 self.results_to_write[model_name][k] = curr_counts
 
-        # Return by example results
+        # Return example-level results
         edit_dist_dict = {
             ModelEvaluator.substitutions_key: subs,
             ModelEvaluator.deletions_key: deletions,
