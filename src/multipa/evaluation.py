@@ -63,8 +63,13 @@ def compute_edit_distance_errors(prediction: str, reference: str, use_ipa_tokeni
         tuple[Counter[tuple[str, str]], Counter[str], Counter[str]: Substitutions, deletions, insertions
     """
     if use_ipa_tokenise:
-        pred_tokens = ipatok.tokenise(prediction, **kwargs)
-        ref_tokens = ipatok.tokenise(reference, **kwargs)
+        try:
+            pred_tokens = ipatok.tokenise(prediction, **kwargs)
+            ref_tokens = ipatok.tokenise(reference, **kwargs)
+        except ValueError:
+            # Fall back to characters if tokenise fails
+            pred_tokens = list(prediction)
+            ref_tokens = list(reference)
     else:
         pred_tokens = list(prediction)
         ref_tokens = list(reference)
