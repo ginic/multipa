@@ -13,6 +13,7 @@
 
 EVAL_RESULTS_CSV=data/evaluation_results/aggregate_metrics/baseline_eval.csv
 DETAILED_RESULTS_DIR=data/evaluation_results/detailed_predictions
+EDIT_DIST_DIR=data/evaluation_results/edit_distances
 DATA_DIR=data/buckeye
 
 module load conda/latest
@@ -23,5 +24,6 @@ conda activate ./env_cuda124
 multipa-evaluate --hf_models facebook/wav2vec2-lv-60-espeak-cv-ft ctaguchi/wav2vec2-large-xlsr-japlmthufielta-ipa1000-ns  \
  --eval_out $EVAL_RESULTS_CSV \
  --verbose_results_dir $DETAILED_RESULTS_DIR \
+ --edit_dist_dir $EDIT_DIST_DIR \
  --no_space --data_dir $DATA_DIR \
  --use_gpu --num_proc 8

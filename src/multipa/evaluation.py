@@ -196,6 +196,7 @@ class ModelEvaluator:
                 summed_results[model][k] = total
 
         df = pd.DataFrame.from_dict(summed_results, orient="index")
+
         df.index.name = ModelEvaluator.model_key
         df.to_csv(
             csv_path,
@@ -203,7 +204,6 @@ class ModelEvaluator:
                 ModelEvaluator.per_key,
                 ModelEvaluator.pfer_key,
                 ModelEvaluator.fer_key,
-                ModelEvaluator.phone_hallucinations_key,
                 ModelEvaluator.substitutions_key,
                 ModelEvaluator.insertions_key,
                 ModelEvaluator.deletions_key,
