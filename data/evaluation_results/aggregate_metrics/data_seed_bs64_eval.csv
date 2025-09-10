@@ -1,6 +1,5 @@
-model,mean_phone_error_rate,mean_phone_feature_error_rate,mean_feature_error_rate,total_phone_hallucinations
-data/models/data_seed_bs64_1/wav2vec2-large-xlsr-53-buckeye-ipa,0.2875588023371989,4.384819846426462,0.16552451774996224,0
-data/models/data_seed_bs64_2/wav2vec2-large-xlsr-53-buckeye-ipa,0.29175336428368975,4.502666207258646,0.16781958376852324,0
-data/models/data_seed_bs64_3/wav2vec2-large-xlsr-53-buckeye-ipa,0.28572805763395553,4.317491960359651,0.1674231684170197,0
-data/models/data_seed_bs64_4/wav2vec2-large-xlsr-53-buckeye-ipa,0.28257447414799813,4.28240467283586,0.1653278733203721,0
-data/models/hyperparam_tuning_1/wav2vec2-large-xlsr-53-buckeye-ipa,0.2860536652259393,4.313947955634312,0.1670765255220882,0
+model,mean_phone_error_rate,mean_phone_feature_error_rate,mean_feature_error_rate,substitutions,insertions,deletions
+ginic/data_seed_bs64_1_wav2vec2-large-xlsr-53-buckeye-ipa,0.2798047548788091,4.2596885869921906,0.16216627546113999,24498,9949,11814
+ginic/data_seed_bs64_2_wav2vec2-large-xlsr-53-buckeye-ipa,0.2957377448180856,4.477062413860996,0.1608337197981845,24719,9509,13632
+ginic/data_seed_bs64_3_wav2vec2-large-xlsr-53-buckeye-ipa,0.2972010953821975,4.407166765111242,0.16015629169772164,25444,10805,11886
+ginic/data_seed_bs64_4_wav2vec2-large-xlsr-53-buckeye-ipa,0.28605657314770727,4.338690358994553,0.16670311406127816,25028,9935,12253
