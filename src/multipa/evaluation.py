@@ -264,7 +264,8 @@ def drop_extra_csv_output_columns(
     if extra_columns is None:
         extra_columns = ["audio", "__index_level_0__"]
     for c in extra_columns:
-        dataset = dataset.remove_columns(c)
+        if c in dataset.column_names:
+            dataset = dataset.remove_columns(c)
 
     return dataset
 
