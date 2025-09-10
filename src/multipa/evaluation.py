@@ -55,9 +55,9 @@ def compute_edit_distance_errors(prediction: str, reference: str, use_ipa_tokeni
     - Insertions: dictionary mapping inserted token to number of times its inserted
 
     Args:
-        prediction: _description_
-        reference: _description_
-        is_use_ipa_tokenise: _description_. Defaults to True.
+        prediction: Predicted transcription
+        reference: Reference Transcription
+        is_use_ipa_tokenise: Set flag to use IPA phone tokenization heuristics rather than character level differences. Defaults to True.
         kwargs: any arguments to pass to the ipatok tokenise function
 
     Returns:
