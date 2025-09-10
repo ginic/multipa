@@ -6,6 +6,7 @@ Currently only Buckeye test split data is supported for evaluation.
 
 import argparse
 from collections import defaultdict, Counter
+from copy import deepcopy
 from pathlib import Path
 from typing import Any
 
@@ -187,9 +188,27 @@ class ModelEvaluator:
         """Write the aggregate evaluation results stored in this object to the specified CSV file.
         Each model is a row, with aggregate (average or total) metrics stored per column
         """
-        df = pd.DataFrame.from_dict(self.results_to_write, orient="index")
+        summed_results = deepcopy(self.results_to_write)
+
+        for model in summed_results:
+            for k in [ModelEvaluator.substitutions_key, ModelEvaluator.insertions_key, ModelEvaluator.deletions_key]:
+                total = sum(summed_results[model][k].values())
+                summed_results[model][k] = total
+
+        df = pd.DataFrame.from_dict(summed_results, orient="index")
         df.index.name = ModelEvaluator.model_key
-        df.to_csv(csv_path)
+        df.to_csv(
+            csv_path,
+            columns=[
+                ModelEvaluator.per_key,
+                ModelEvaluator.pfer_key,
+                ModelEvaluator.fer_key,
+                ModelEvaluator.phone_hallucinations_key,
+                ModelEvaluator.substitutions_key,
+                ModelEvaluator.insertions_key,
+                ModelEvaluator.deletions_key,
+            ],
+        )
 
     def write_edit_distance_results(self, model_name: str | Path, directory: Path):
         """Writes counts of edit distance errors by symbol to CSV files.
