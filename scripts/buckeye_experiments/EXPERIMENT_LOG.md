@@ -84,3 +84,15 @@ Params to vary:
 - demographic make up of training data by age, using --speaker_restriction 
     - Experiments `young_only`: only individuals under 30, S01 S04 S08 S09 S12 S21 S06 S11 S13 S15 S28 S30
     - Experiments `old_only`: only individuals over 40, S02 S05 S07 S14 S16 S17 S03 S10 S19 S22 S24
+
+## `train_duration`
+These experiments are targeted at understanding how increasing the amount of data used to train the model affects performance. The first number in the model name indicates the total number of randomly selected data samples. Data samples are selected to maintain 50/50 gender split from speakers, with the exception of the models trained on 20000 samples, as there are 18782 audio samples in our train split of Buckeye, but they are not split equally between male and female speakers. Experiments using 20000 samples actually use all 8252 samples from female speakers in the train set, but randomly select 10000 samples from male speakers for a total of 18252 samples. 
+
+For each number of train data samples, 5 models are trained to vary train data selection (`train_seed`) without varying other hyperparameters. Before these models were trained, simple grid search hyperparameter tuning was done to select reasonable hyperparameters for fine-tuning with the target number of samples. The hyperparam tuning models have not been uploaded to HuggingFace. 
+
+Goals: 
+- See how performance on the test set changes as more data is used in fine-tuning 
+
+Params to vary: 
+- training seed (--train_seed)
+- number of data samples used in training the model (--train_samples): 100, 200, 400, 800, 1600, 3200, 6400, 12800, 20000 
