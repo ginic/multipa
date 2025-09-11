@@ -9,6 +9,7 @@
 #SBATCH --time 3:00:00
 #SBATCH -o %j_train_duration_1600_samples_2.out
 #SBATCH --mail-type END
+#SBATCH --exclude gpu041
 
 batch_size=4
 grad_acc=2

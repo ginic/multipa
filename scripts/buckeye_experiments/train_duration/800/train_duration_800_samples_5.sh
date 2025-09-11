@@ -9,10 +9,11 @@
 #SBATCH --time 5:00:00
 #SBATCH -o %j_train_duration_800_samples_5.out
 #SBATCH --mail-type END
+#SBATCH --exclude gpu041
 
 batch_size=4
 grad_acc=2
-learning_rate=3e-4
+learning_rate=1e-6
 model_dir=data/models/train_duration_800_samples_5
 rand_seed=46
 train_samples=800
