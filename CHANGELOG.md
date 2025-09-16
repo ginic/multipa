@@ -9,6 +9,7 @@ You should also add project tags for each release in Github, see [Managing relea
 ## [Unreleased]
 ### Added
 - Script for evaluating models against the Buckeye test dataset
+- Draw training samples from Buckeye data matching certain speaker demographics or individuals
 - Unit tests with pytest
 - Buckeye Corpus support in preprocessing and model training
 - Resources directory for pronounciation dictionary and IPA vocabulary files
