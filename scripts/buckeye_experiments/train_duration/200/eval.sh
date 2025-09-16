@@ -1,9 +1,9 @@
 #!/bin/bash
 
 #SBATCH -c 8
-#SBATCH --mem=24GB
+#SBATCH --mem=12GB
 #SBATCH -p gpu-preempt
-#SBATCH -G 4
+#SBATCH -G 1
 #SBATCH --nodes=1
 #SBATCH --constraint=vram40
 #SBATCH --time 08:00:00
@@ -28,5 +28,5 @@ multipa-evaluate --local_models \
  data/models/train_duration_200_samples_5/wav2vec2-large-xlsr-53-buckeye-ipa \
  --eval_out $EVAL_RESULTS_CSV \
  --verbose_results_dir $DETAILED_RESULTS_DIR \
- --no_space --data_dir $DATA_DIR
- --use_gpu
+ --no_space --data_dir $DATA_DIR \
+ --use_gpu --num_proc 8
