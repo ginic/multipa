@@ -1,0 +1,25 @@
+Experiment script,train_duration_female (seconds),train_duration_male (seconds)
+data_seed_bs64_1.sh,6040.728,5013.809
+data_seed_bs64_2.sh,5957.211,5211.604
+data_seed_bs64_3.sh,5634.09,5202.365
+data_seed_bs64_4.sh,6028.736,4898.312
+gender_split_0_female_1.sh,0,10123.067
+gender_split_0_female_2.sh,0,10130.569
+gender_split_0_female_3.sh,0,10392.944
+gender_split_0_female_4.sh,0,10341.579
+gender_split_0_female_5.sh,0,9938.943
+gender_split_30_female_1.sh,3670.175,6963.712
+gender_split_30_female_2.sh,3614.62,6841.856
+gender_split_30_female_3.sh,3377.363,7345.647
+gender_split_30_female_4.sh,3720.03,7345.406
+gender_split_30_female_5.sh,3620.923,6957.429
+gender_split_70_female_1.sh,8231.892,2986.92
+gender_split_70_female_2.sh,8386.606,3015.381
+gender_split_70_female_3.sh,8093.111,3253.957
+gender_split_70_female_4.sh,8399.86,3004.967
+gender_split_70_female_5.sh,8650.175,2945.733
+gender_split_100_female_1.sh,11895.956,0
+gender_split_100_female_2.sh,11980.316,0
+gender_split_100_female_3.sh,11925.482,0
+gender_split_100_female_4.sh,11956.087,0
+gender_split_100_female_5.sh,11867.613,0

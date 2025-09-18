@@ -19,7 +19,7 @@ Evaluation/
 - `ginic/data_seed_bs64_4_wav2vec2-large-xlsr-53-buckeye-ipa` (Ours - Multipa)
 - `ctaguchi/wav2vec2-large-xlsr-japlmthufielta-ipa1000-ns` (Taguchi)
 - `Allosaurus` (Model: `eng2102`)
-- `ZIPA` _(Pending – env & IceFall and K2 issues on Mac)_
+- Whisper to Epitran pipelines
 
 ## Epitran Dependency For Allosaraus
 

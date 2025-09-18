@@ -506,7 +506,7 @@ class BuckeyePreprocessor(TrainingPreprocessor):
 
         logger.info("Buckeye train dataset size after filtering by duration and speaker id: %s", len(filtered_data))
 
-        if self.percent_female is not None and self.percent_female > 0:
+        if self.percent_female is not None and self.percent_female >= 0:
             # Select numbers of examples matching the gender split
             logger.info(
                 "Sampling Buckeye training data by gender split with %s ratio female speakers", self.percent_female
