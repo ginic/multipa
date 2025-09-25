@@ -1,0 +1,2 @@
+model,phone_error_rates,phone_feature_error_rates,feature_error_rates
+facebook/wav2vec2-lv-60-espeak-cv-ft,0.342972658040268,3.8026322751322756,0.6422516257502907
