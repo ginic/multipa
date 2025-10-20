@@ -33,9 +33,7 @@ def test_compute_edit_distance_errors(ref, pred, subs, dels, inserts, token_coun
     ],
 )
 def test_computes_edit_distance_no_ipa_tok(ref, pred, subs, dels, inserts, token_counts):
-    actual_subs, actual_dels, actual_inserts, actual_tokens = compute_edit_distance_errors(
-        pred, ref, use_ipa_tokenise=False
-    )
+    actual_subs, actual_dels, actual_inserts, actual_tokens = compute_edit_distance_errors(pred, ref, use_ipa_tokenise=False)
     assert actual_subs == subs
     assert actual_dels == dels
     assert actual_inserts == inserts

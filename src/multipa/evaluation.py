@@ -6,7 +6,6 @@ Currently only Buckeye test split data is supported for evaluation.
 
 import argparse
 from collections import defaultdict, Counter
-from copy import deepcopy
 from pathlib import Path
 from typing import Any
 
@@ -57,7 +56,8 @@ def compute_edit_distance_errors(prediction: str, reference: str, use_ipa_tokeni
     Args:
         prediction: Predicted transcription
         reference: Reference Transcription
-        is_use_ipa_tokenise: Set flag to use IPA phone tokenization heuristics rather than character level differences. Defaults to True.
+        is_use_ipa_tokenise: Set flag to use IPA phone tokenization heuristics rather than character level
+            differences. Defaults to True.
         kwargs: any arguments to pass to the ipatok tokenise function
 
     Returns:
@@ -164,7 +164,9 @@ class ModelEvaluator:
 
     def eval_edit_distances(self, model_name, predictions, references, compute_by_token_error_rates=False):
         """Computes edit distance errors and by-token (by-phoneme) error rates for the specified model.
-        Model-level results are saved in the current ModelEvaluator instance. Example-level results for substitutions, deletions and insertions are returned in the form {error_type_key -> [{affected_token -> count_of_errors}]}.
+        Model-level results are saved in the current ModelEvaluator instance. Example-level results for
+        substitutions, deletions and insertions are returned in the form
+        {error_type_key -> [{affected_token -> count_of_errors}]}.
 
         Args:
             model_name: The model currently being evaluated.
@@ -324,9 +326,7 @@ def get_torch_device(use_gpu: bool = False):
     return torch.device("cpu")
 
 
-def drop_extra_csv_output_columns(
-    dataset: datasets.Dataset, extra_columns: list[str] | None = None
-) -> datasets.Dataset:
+def drop_extra_csv_output_columns(dataset: datasets.Dataset, extra_columns: list[str] | None = None) -> datasets.Dataset:
     """Removes the specified columns from dataset in place.
 
     Args:
@@ -458,9 +458,7 @@ def main(
 
         if len(non_empty_test_data) > 0:
             print("Getting predictions for audio with non-empty gold-standard transcriptions")
-            predictions = get_clean_predictions(
-                non_empty_test_data, pipe, num_proc=num_proc, is_remove_space=is_remove_space
-            )
+            predictions = get_clean_predictions(non_empty_test_data, pipe, num_proc=num_proc, is_remove_space=is_remove_space)
             print("Predictions data preview:")
             print(predictions[0])
 
@@ -524,26 +522,29 @@ def main_cli():
         help="Path local Buckeye format pre-processed dataset to use for testing.",
     )
 
-    parser.add_argument(
-        "-e", "--eval_out", type=Path, required=True, help="Output CSV files to write evaluation metrics to."
-    )
+    parser.add_argument("-e", "--eval_out", type=Path, required=True, help="Output CSV files to write evaluation metrics to.")
     parser.add_argument(
         "-v",
         "--verbose_results_dir",
         type=Path,
-        help="If desired, specify a path to a directory to dump by-model transcriptions with by-example performance metrics to for later inspection if desired. For each model, one CSV for detailed predictions and one for hallucinations (audio without speech, but where transcripts) are created.",
+        help=(
+            "If desired, specify a path to a directory to dump by-model transcriptions with by-example "
+            "performance metrics to for later inspection if desired. For each model, one CSV for detailed "
+            "predictions and one for hallucinations (audio without speech, but where transcripts) are created."
+        ),
     )
 
     parser.add_argument(
         "-ed",
         "--edit_dist_dir",
         type=Path,
-        help="If desired, specify a path to a directory for storing by-model edit distance results, 3 CSVs for each model: one for substitions, insertions and deletions",
+        help=(
+            "If desired, specify a path to a directory for storing by-model edit distance results, "
+            "3 CSVs for each model: one for substitions, insertions and deletions"
+        ),
     )
 
-    parser.add_argument(
-        "-ns", "--no_space", action="store_true", help="Use this flag remove spaces in IPA transcription."
-    )
+    parser.add_argument("-ns", "--no_space", action="store_true", help="Use this flag remove spaces in IPA transcription.")
 
     parser.add_argument(
         "-g",

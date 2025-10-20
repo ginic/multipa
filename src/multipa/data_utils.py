@@ -119,8 +119,10 @@ def join_column(
         right_dataset: Huggingface dataset
         on_key (str): join key, must be present in both datasets
         right_col (str): column to add from right dataset
-        is_check_basename (bool): If on_key contains full paths, but you only want to validate the basename matches
-        additional_check_col (str|None): If there's an additional column you want to check matches before joining, use this. Check 'sentence' column by default.
+        is_check_basename (bool): If on_key contains full paths, but you only want to validate the basename
+            matches
+        additional_check_col (str|None): If there's an additional column you want to check matches before
+            joining, use this. Check 'sentence' column by default.
 
     Returns:
         Huggingface Dataset
@@ -219,7 +221,8 @@ def load_librispeech_split(
 
 def load_buckeye_split(corpus_root_dir: str | os.PathLike, split: str) -> datasets.Dataset:
     dataset_split = datasets.load_dataset("audiofolder", data_dir=corpus_root_dir, split=split)
-    # Output data has duplicates despite following the format from HuggingFace documentation, so deduplicate based on utterance id
+    # Output data has duplicates despite following the format from HuggingFace documentation,
+    # so deduplicate based on utterance id
     deduplicated_df = dataset_split.to_pandas().drop_duplicates("utterance_id")
     return datasets.Dataset.from_pandas(deduplicated_df)
 
@@ -265,14 +268,18 @@ class TrainingPreprocessor(ABC):
             data_dir (str | os.PathLike): Path to directory storing preprocessed dataset in HuggingFace compatible format
             cache_dir (str | os.PathLike): Path to desired HuggingFace cache directory
             train_sampler (SimpleSampler | SubsetSampler): Object for sampling strategy on training data
-            val_sampler (SimpleSampler | SubsetSampler): Object for sampling strategy on validation data 
+            val_sampler (SimpleSampler | SubsetSampler): Object for sampling strategy on validation data
             num_proc (int): Number of processing threads for dataset map and filter operations
-            unused_columns (None | list[str], optional): List of columns to remove from the dataset before training. Defaults to None.
-            is_remove_spaces (bool, optional): Set to true to remove whitespace from text strings before training. Defaults to False.
-            vocab_resource_file (None | str, optional): Name of file from in the resources submodule which stores vocab items, one per line. 
-                If not specified, vocab will be determined solely from the training data. Defaults to None.
-            is_whitespace_delimited (bool, optional): Set to True if vocabulary symbols in the training data are separated by whitespate. 
-                If False, vocabulary will be determined from characters in training data. Defaults to False.
+            unused_columns (None | list[str], optional): List of columns to remove from the dataset before
+                training. Defaults to None.
+            is_remove_spaces (bool, optional): Set to true to remove whitespace from text strings before
+                training. Defaults to False.
+            vocab_resource_file (None | str, optional): Name of file from in the resources submodule which
+                stores vocab items, one per line. If not specified, vocab will be determined solely from
+                the training data. Defaults to None.
+            is_whitespace_delimited (bool, optional): Set to True if vocabulary symbols in the training data
+                are separated by whitespate. If False, vocabulary will be determined from characters in
+                training data. Defaults to False.
         """
         self.dataset_name = dataset_name
         self.data_dir = data_dir
@@ -319,7 +326,8 @@ class TrainingPreprocessor(ABC):
                 token_func,
                 batched=True,
                 keep_in_memory=True,
-                remove_columns=d.column_names,  # Must remove other columns because vocab is different length from input dataset
+                # Must remove other columns because vocab is different length from input dataset
+                remove_columns=d.column_names,
                 num_proc=self.num_proc,
             )
             final_vocab = final_vocab | set(d_vocab["vocab"])
@@ -386,7 +394,6 @@ class BuckeyePreprocessor(TrainingPreprocessor):
     MALE_SAMPLES_KEY = "train_num_male_examples"
     MALE_DURATION_KEY = "train_duration_male_examples"
 
-
     def __init__(
         self,
         data_dir: str | os.PathLike,
@@ -398,22 +405,28 @@ class BuckeyePreprocessor(TrainingPreprocessor):
         max_length: float = 12,
         speaker_restriction: None | list[str] = None,
         percent_female: None | float = 0.5,
-        use_val_split_in_training = False, 
-        use_test_split_in_training = False,
+        use_val_split_in_training=False,
+        use_test_split_in_training=False,
     ):
         """
         Args:
             data_dir (str | os.PathLike): Path to directory storing preprocessed dataset in HuggingFace compatible format
             cache_dir (str | os.PathLike): Path to desired HuggingFace cache directory
             train_sampler (SimpleSampler | SubsetSampler): Object for sampling strategy on training data
-            val_sampler (SimpleSampler | SubsetSampler): Object for sampling strategy on validation data 
+            val_sampler (SimpleSampler | SubsetSampler): Object for sampling strategy on validation data
             num_proc (int): Number of processing threads for dataset map and filter operations
-            min_length (float, optional): Minimum duration (in seconds) of samples to be included in training data. Defaults to 0.1.
-            max_length (float, optional): Maximum duration (in seconds) of samples to be included in training data. Defaults to 12.
-            speaker_restriction (None | list[str], optional): Optional list of speaker ids, where only samples from these speakers will be included in training. Defaults to None.
-            percent_female (None | float, optional): Percent of training samples that must come from female speakers. Defaults to 0.5.
-            use_val_split_in_training (bool, optional): Set to True to include validation split in the training data. Defaults to False.
-            use_test_split_in_training (bool, optional): Set to True to include test split in the training data.. Defaults to False.
+            min_length (float, optional): Minimum duration (in seconds) of samples to be included in training
+                data. Defaults to 0.1.
+            max_length (float, optional): Maximum duration (in seconds) of samples to be included in training
+                data. Defaults to 12.
+            speaker_restriction (None | list[str], optional): Optional list of speaker ids, where only samples
+                from these speakers will be included in training. Defaults to None.
+            percent_female (None | float, optional): Percent of training samples that must come from female
+                speakers. Defaults to 0.5.
+            use_val_split_in_training (bool, optional): Set to True to include validation split in the
+                training data. Defaults to False.
+            use_test_split_in_training (bool, optional): Set to True to include test split in the training
+                data. Defaults to False.
         """
         self.min_length = min_length
         self.max_length = max_length
@@ -437,17 +450,20 @@ class BuckeyePreprocessor(TrainingPreprocessor):
             is_whitespace_delimited=True,
         )
 
-    def _sample_gender_subset(self, dataset:datasets.Dataset, num_samples: int, seed: int, gender_value: Literal["m", "f"]):
+    def _sample_gender_subset(
+        self, dataset: datasets.Dataset, num_samples: int, seed: int, gender_value: Literal["m", "f"]
+    ):
         """Samples up to num_samples examples matching the specified gender value from the given dataset.
 
         Args:
             dataset (datasets.Dataset): The dataset from which to select samples
-            num_samples (int): An upperbound on the number of samples to include. Acutally number may be less depending on the dataset makeup.
+            num_samples (int): An upperbound on the number of samples to include. Acutally number may be less
+                depending on the dataset makeup.
             seed (int): Random seed for sampling data
             gender_value (Literal["m","f"]): The desired gender value ("m" or "f")
 
         Returns: tuple
-            (datasets.Dataset: dataset with examples only matching desired gender, 
+            (datasets.Dataset: dataset with examples only matching desired gender,
             int: the actual number of examples in the dataset (might be different from num_samples),
             float: the total duration of audio in the dataset)
         """
@@ -464,7 +480,7 @@ class BuckeyePreprocessor(TrainingPreprocessor):
         return gender_examples, total_samples, duration
 
     def get_gender_stats(self, dataset: datasets.Dataset, gender_value: Literal["m", "f"]):
-        """Computes and returns the number of samples and total audio duration for data from 
+        """Computes and returns the number of samples and total audio duration for data from
         speakers with the specified gender in the dataset.
 
         Args:
@@ -486,9 +502,7 @@ class BuckeyePreprocessor(TrainingPreprocessor):
         - Filtering samples to match the desired gender makeup of the training set
         """
         # Clear stats from training data tracker
-        for key in [
-            self.FEMALE_SAMPLES_KEY, self.FEMALE_DURATION_KEY, self.MALE_DURATION_KEY, self.MALE_SAMPLES_KEY
-        ]:
+        for key in [self.FEMALE_SAMPLES_KEY, self.FEMALE_DURATION_KEY, self.MALE_DURATION_KEY, self.MALE_SAMPLES_KEY]:
             self._latest_training_data_stats.pop(key, None)
 
         logger.info(
@@ -512,10 +526,14 @@ class BuckeyePreprocessor(TrainingPreprocessor):
                 "Sampling Buckeye training data by gender split with %s ratio female speakers", self.percent_female
             )
             num_female_examples = int(self.train_sampler.num_samples * self.percent_female)
-            female_examples, actual_num_female_examples, female_duration = self._sample_gender_subset(filtered_data, num_female_examples, self.train_sampler.seed, "f")
+            female_examples, actual_num_female_examples, female_duration = self._sample_gender_subset(
+                filtered_data, num_female_examples, self.train_sampler.seed, "f"
+            )
 
             num_male_examples = self.train_sampler.num_samples - num_female_examples
-            male_examples, actual_num_male_examples, male_duration = self._sample_gender_subset(filtered_data, num_male_examples, self.train_sampler.seed, "m")
+            male_examples, actual_num_male_examples, male_duration = self._sample_gender_subset(
+                filtered_data, num_male_examples, self.train_sampler.seed, "m"
+            )
 
             full_train_data = datasets.concatenate_datasets([female_examples, male_examples])
         else:
@@ -543,7 +561,7 @@ class BuckeyePreprocessor(TrainingPreprocessor):
 
         if self.use_test_split_in_training:
             train_data = datasets.concatenate_datasets([train_data, load_buckeye_split(self.data_dir, "test")])
-                
+
         full_train_data = self._filter_train_dataset(train_data)
 
         # You need to create the vocabulary before removing spaces, because it's whitespace delimited
