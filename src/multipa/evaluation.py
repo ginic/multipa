@@ -75,6 +75,7 @@ def compute_edit_distance_errors(prediction: str, reference: str, use_ipa_tokeni
         pred_tokens = list(prediction)
         ref_tokens = list(reference)
 
+    true_token_counts = Counter(ref_tokens)
     subs = Counter()
     insertions = Counter()
     deletions = Counter()
@@ -89,15 +90,51 @@ def compute_edit_distance_errors(prediction: str, reference: str, use_ipa_tokeni
         elif r != p:
             subs[(r, p)] += 1
 
-    return subs, deletions, insertions
+    return subs, deletions, insertions, true_token_counts
 
 
 def collate_edit_distances(edit_dist_counter: list[Counter[Any]]) -> Counter[Any]:
+    """
+    Collates edit distance errors from a list of counters.
+
+    Args:
+        edit_dist_counter (list[Counter[Any]]): List of counters containing edit distance errors.
+
+    Returns:
+        Counter[Any]: A single counter with the aggregated counts.
+    """
     final_counts = Counter()
     for c in edit_dist_counter:
         final_counts += c
-
     return final_counts
+
+
+def calculate_by_token_error_rates(
+    token_counts: Counter[str], substitutions: Counter[tuple[str, str]], deletions: Counter[str]
+) -> dict[str, float]:
+    """Computes error rates for each token based on substitutions and deletions.
+
+    Args:
+        token_counts: Counter mapping tokens to their total occurrences in references.
+        substitutions: Counter mapping (reference_token, predicted_token) pairs to substitution counts.
+        deletions: Counter mapping deleted tokens to deletion counts.
+
+    Returns:
+        dict[str, float]: Dictionary mapping each token to its error rate (ratio of errors to total occurrences).
+    """
+    # Flatten substitutions to make them easier to work with
+    subs_by_references = Counter()
+    for sub_pair, sub_count in substitutions.items():
+        sub_reference = sub_pair[0]
+        subs_by_references[sub_reference] += sub_count
+
+    error_rates = {}
+    for tok, tok_count in token_counts.items():
+        if tok_count > 0:
+            tok_errors = subs_by_references[tok] + deletions[tok]
+            error_rates[tok] = tok_errors / tok_count
+
+    return error_rates
 
 
 class ModelEvaluator:
@@ -110,6 +147,7 @@ class ModelEvaluator:
     substitutions_key = "substitutions"
     deletions_key = "deletions"
     insertions_key = "insertions"
+    by_token_error_rates = "by_token_error_rates"
 
     def __init__(self, use_ipa_tokenise: bool = True):
         """Configure distance calculations and save results for each model
@@ -124,20 +162,36 @@ class ModelEvaluator:
         self.results_to_write = defaultdict(dict)
         self.use_ipa_tokenise = use_ipa_tokenise
 
-    def eval_edit_distances(self, model_name, predictions, references):
+    def eval_edit_distances(self, model_name, predictions, references, compute_by_token_error_rates=False):
+        """Computes edit distance errors and by-token (by-phoneme) error rates for the specified model.
+        Model-level results are saved in the current ModelEvaluator instance. Example-level results for substitutions, deletions and insertions are returned in the form {error_type_key -> [{affected_token -> count_of_errors}]}.
+
+        Args:
+            model_name: The model currently being evaluated.
+            predictions: Predictions from the model
+            references: Reference transcriptions
+            compute_by_token_error_rates: If True, compute and store by-token error rates. Defaults to False.
+
+        Returns:
+            dict[str, list[dict[Any, int]]]: example level edit distance errors
+        """
         # Compute errors for each example
         subs, deletions, inserts = [], [], []
 
+        true_token_counts = Counter()
+
         for p, r in zip(predictions, references):
-            s, d, i = compute_edit_distance_errors(p, r, use_ipa_tokenise=self.use_ipa_tokenise)
+            s, d, i, ref_token_counts = compute_edit_distance_errors(p, r, use_ipa_tokenise=self.use_ipa_tokenise)
             subs.append(s)
             deletions.append(d)
             inserts.append(i)
+            true_token_counts += ref_token_counts
 
         # Save totals for each symbol edit for the current model
         total_subs = collate_edit_distances(subs)
         total_deletions = collate_edit_distances(deletions)
         total_inserts = collate_edit_distances(inserts)
+
         for k, curr_counts in [
             (ModelEvaluator.substitutions_key, total_subs),
             (ModelEvaluator.deletions_key, total_deletions),
@@ -145,11 +199,16 @@ class ModelEvaluator:
         ]:
             if model_name in self.results_to_write and k in self.results_to_write[model_name]:
                 prev_counts = self.results_to_write[model_name][k]
-                self.results_to_write[model_name][k] = collate_edit_distances([curr_counts, prev_counts])
+                self.results_to_write[model_name][k] = dict(collate_edit_distances([curr_counts, prev_counts]))
             else:
-                self.results_to_write[model_name][k] = curr_counts
+                self.results_to_write[model_name][k] = dict(curr_counts)
 
-        # Return example-level results
+        # Only compute by-token error rates when requested (for non-empty transcriptions)
+        if compute_by_token_error_rates:
+            by_token_error_rates = calculate_by_token_error_rates(true_token_counts, total_subs, total_deletions)
+            self.results_to_write[model_name][ModelEvaluator.by_token_error_rates] = dict(by_token_error_rates)
+
+        # Return example-level edit-distance results
         edit_dist_dict = {
             ModelEvaluator.substitutions_key: subs,
             ModelEvaluator.deletions_key: deletions,
@@ -166,7 +225,7 @@ class ModelEvaluator:
         for k in [ModelEvaluator.per_key, ModelEvaluator.pfer_key, ModelEvaluator.fer_key]:
             self.results_to_write[model_name][k] = metrics[k]
 
-        edit_dist_dict = self.eval_edit_distances(model_name, predictions, references)
+        edit_dist_dict = self.eval_edit_distances(model_name, predictions, references, compute_by_token_error_rates=True)
         metrics.update(edit_dist_dict)
         return metrics
 
@@ -188,28 +247,19 @@ class ModelEvaluator:
         """Write the aggregate evaluation results stored in this object to the specified CSV file.
         Each model is a row, with aggregate (average or total) metrics stored per column
         """
-        summed_results = deepcopy(self.results_to_write)
-
-        for model in summed_results:
-            for k in [ModelEvaluator.substitutions_key, ModelEvaluator.insertions_key, ModelEvaluator.deletions_key]:
-                total = sum(summed_results[model][k].values())
-                summed_results[model][k] = total
-
-        df = pd.DataFrame.from_dict(summed_results, orient="index")
+        df = pd.DataFrame.from_dict(self.results_to_write, orient="index")
         desired_cols = [
-                ModelEvaluator.per_key,
-                ModelEvaluator.pfer_key,
-                ModelEvaluator.fer_key,
-                ModelEvaluator.phone_hallucinations_key,
-                ModelEvaluator.substitutions_key,
-                ModelEvaluator.insertions_key,
-                ModelEvaluator.deletions_key,
-            ]
+            ModelEvaluator.per_key,
+            ModelEvaluator.pfer_key,
+            ModelEvaluator.fer_key,
+            ModelEvaluator.phone_hallucinations_key,
+            ModelEvaluator.substitutions_key,
+            ModelEvaluator.insertions_key,
+            ModelEvaluator.deletions_key,
+            ModelEvaluator.by_token_error_rates,
+        ]
         df.index.name = ModelEvaluator.model_key
-        df.to_csv(
-            csv_path,
-            columns = [c for c in desired_cols if c in df.columns]
-        )
+        df.to_csv(csv_path, columns=[c for c in desired_cols if c in df.columns])
 
     def write_edit_distance_results(self, model_name: str | Path, directory: Path):
         """Writes counts of edit distance errors by symbol to CSV files.
