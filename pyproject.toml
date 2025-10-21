@@ -60,7 +60,7 @@ dev = [
     "huggingface_hub",
     "matplotlib",
     "phonemizer",
-    "ruff",
+    "ruff>=0.14.1",
     "seaborn",
     "scipy",
     "tqdm"

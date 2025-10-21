@@ -168,9 +168,7 @@ def load_common_voice_split(
         Huggingface Dataset
     """
     ipa_dataset = datasets.load_dataset("json", data_files=str(Path(data_dir) / json_filename), split=split)
-    raw_audio = datasets.load_dataset(
-        dataset_name, language, split=huggingface_split, num_proc=num_proc, cache_dir=cache_dir
-    )
+    raw_audio = datasets.load_dataset(dataset_name, language, split=huggingface_split, num_proc=num_proc, cache_dir=cache_dir)
 
     full_dataset = join_column(raw_audio, ipa_dataset, "path", "ipa", is_check_basename=True)
 
@@ -352,9 +350,7 @@ class TrainingPreprocessor(ABC):
 
             symbols_not_in_file = final_vocab - vocab_from_file
             if len(symbols_not_in_file) > 0:
-                logger.warning(
-                    "%s symbol(s) in dataset not in vocab file: %s", len(symbols_not_in_file), symbols_not_in_file
-                )
+                logger.warning("%s symbol(s) in dataset not in vocab file: %s", len(symbols_not_in_file), symbols_not_in_file)
 
             final_vocab = final_vocab | vocab_from_file
 
@@ -450,9 +446,7 @@ class BuckeyePreprocessor(TrainingPreprocessor):
             is_whitespace_delimited=True,
         )
 
-    def _sample_gender_subset(
-        self, dataset: datasets.Dataset, num_samples: int, seed: int, gender_value: Literal["m", "f"]
-    ):
+    def _sample_gender_subset(self, dataset: datasets.Dataset, num_samples: int, seed: int, gender_value: Literal["m", "f"]):
         """Samples up to num_samples examples matching the specified gender value from the given dataset.
 
         Args:
@@ -505,26 +499,20 @@ class BuckeyePreprocessor(TrainingPreprocessor):
         for key in [self.FEMALE_SAMPLES_KEY, self.FEMALE_DURATION_KEY, self.MALE_DURATION_KEY, self.MALE_SAMPLES_KEY]:
             self._latest_training_data_stats.pop(key, None)
 
-        logger.info(
-            "Filtering Buckeye training data with sample duration >= %s, < %s", self.min_length, self.max_length
-        )
+        logger.info("Filtering Buckeye training data with sample duration >= %s, < %s", self.min_length, self.max_length)
         filtered_data = train_data.filter(lambda x: x["duration"] < self.max_length, num_proc=self.num_proc)
         filtered_data = filtered_data.filter(lambda x: x["duration"] >= self.min_length, num_proc=self.num_proc)
 
         # Handle restrictions to particular individuals
         if self.speaker_restriction:
             logger.info("Filtering Buckeye training to speaker ids %s", self.speaker_restriction)
-            filtered_data = filtered_data.filter(
-                lambda x: x["speaker_id"] in self.speaker_restriction, num_proc=self.num_proc
-            )
+            filtered_data = filtered_data.filter(lambda x: x["speaker_id"] in self.speaker_restriction, num_proc=self.num_proc)
 
         logger.info("Buckeye train dataset size after filtering by duration and speaker id: %s", len(filtered_data))
 
         if self.percent_female is not None and self.percent_female >= 0:
             # Select numbers of examples matching the gender split
-            logger.info(
-                "Sampling Buckeye training data by gender split with %s ratio female speakers", self.percent_female
-            )
+            logger.info("Sampling Buckeye training data by gender split with %s ratio female speakers", self.percent_female)
             num_female_examples = int(self.train_sampler.num_samples * self.percent_female)
             female_examples, actual_num_female_examples, female_duration = self._sample_gender_subset(
                 filtered_data, num_female_examples, self.train_sampler.seed, "f"

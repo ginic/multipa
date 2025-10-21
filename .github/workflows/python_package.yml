@@ -8,15 +8,12 @@ on:
 
 jobs:
   build:
-
     runs-on: ubuntu-latest
     strategy:
       matrix:
         python-version: ["3.10", "3.11"]
-
     steps:
       - uses: actions/checkout@v3
-      - uses: astral-sh/ruff-action@v3
       - name: Set up Python ${{ matrix.python-version }}
         uses: actions/setup-python@v3
         with:
@@ -26,13 +23,20 @@ jobs:
           python -m pip install --upgrade pip
           pip install .[test]
           python -m unidic download
+      - name: Test with pytest
+        run: pytest
+  lint_and_format:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      - uses: astral-sh/ruff-action@v3
+        with:
+          version: ">=0.14.1"
       - name: Lint with ruff
         run: |
           # stop the build if there are Python syntax errors or undefined names
           ruff check . --select=E9,F63,F7,F82 --diff
           # exit-zero treats all errors as warnings. The GitHub editor is 127 chars wide.
           ruff check . --exit-zero --statistics
-      - name: Format with ruff
+      - name: Format checks with ruff
         run: ruff format --diff
-      - name: Test with pytest
-        run: pytest
