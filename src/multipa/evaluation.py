@@ -45,8 +45,13 @@ def clean_model_name(model_name: str | Path) -> str:
 
 
 def compute_edit_distance_errors(prediction: str, reference: str, use_ipa_tokenise: bool = True, **kwargs):
-    """Compares two strings and returns counts of the substitions, deletions and insertions
+    """Tokenizes and compares two strings and returns counts of the substitions, deletions and insertions
     between them.
+
+    Tokenization is done in this function to ensure that the same tokenization strategy is used on both
+    prediction and reference. This is important to make sure that differences due to symbol inventories and
+    model vocabularies are minimized. To reduce complexity, we also choose to use the ipatok
+    library, rather than the wav2vec model tokenizers.
 
     Results are in the following format:
     - Substitutions: dictionary mapping reference token to dict mapping substituted token to count
@@ -61,7 +66,8 @@ def compute_edit_distance_errors(prediction: str, reference: str, use_ipa_tokeni
         kwargs: any arguments to pass to the ipatok tokenise function
 
     Returns:
-        tuple[Counter[tuple[str, str]], Counter[str], Counter[str]: Substitutions, deletions, insertions
+        tuple[Counter[tuple[str, str]], Counter[str], Counter[str], Counter[str]: Substitutions, deletions, insertions,
+            true token counts
     """
     if use_ipa_tokenise:
         try:
@@ -149,7 +155,7 @@ class ModelEvaluator:
     insertions_key = "insertions"
     by_token_error_rates = "by_token_error_rates"
 
-    def __init__(self, use_ipa_tokenise: bool = True):
+    def __init__(self, use_ipa_tokenise: bool = True, tokenise_options: None | dict[str, Any] = None):
         """Configure distance calculations and save results for each model
 
         Args:
@@ -161,6 +167,7 @@ class ModelEvaluator:
         # {model name -> {metric_key: metric_value}}
         self.results_to_write = defaultdict(dict)
         self.use_ipa_tokenise = use_ipa_tokenise
+        self.tokenise_options = tokenise_options
 
     def eval_edit_distances(self, model_name, predictions, references, compute_by_token_error_rates=False):
         """Computes edit distance errors and by-token (by-phoneme) error rates for the specified model.
@@ -173,6 +180,7 @@ class ModelEvaluator:
             predictions: Predictions from the model
             references: Reference transcriptions
             compute_by_token_error_rates: If True, compute and store by-token error rates. Defaults to False.
+            kwargs: Passed to ipatok.tokenise
 
         Returns:
             dict[str, list[dict[Any, int]]]: example level edit distance errors
@@ -183,7 +191,9 @@ class ModelEvaluator:
         true_token_counts = Counter()
 
         for p, r in zip(predictions, references):
-            s, d, i, ref_token_counts = compute_edit_distance_errors(p, r, use_ipa_tokenise=self.use_ipa_tokenise)
+            s, d, i, ref_token_counts = compute_edit_distance_errors(
+                p, r, use_ipa_tokenise=self.use_ipa_tokenise, **self.tokenise_options
+            )
             subs.append(s)
             deletions.append(d)
             inserts.append(i)
@@ -218,7 +228,7 @@ class ModelEvaluator:
         }
         return edit_dist_dict
 
-    def eval_non_empty_transcriptions(self, model_name, predictions, references) -> dict[str, list[Any]]:
+    def eval_non_empty_transcriptions(self, model_name, predictions, references, **kwargs) -> dict[str, list[Any]]:
         """Compare the predictions and gold-standard references for a model,
         then add results to model results tracker.
         Returns the full detailed evaluation results as a dictionary.
@@ -227,7 +237,9 @@ class ModelEvaluator:
         for k in [ModelEvaluator.per_key, ModelEvaluator.pfer_key, ModelEvaluator.fer_key]:
             self.results_to_write[model_name][k] = metrics[k]
 
-        edit_dist_dict = self.eval_edit_distances(model_name, predictions, references, compute_by_token_error_rates=True)
+        edit_dist_dict = self.eval_edit_distances(
+            model_name, predictions, references, compute_by_token_error_rates=True, **kwargs
+        )
         metrics.update(edit_dist_dict)
         return metrics
 
