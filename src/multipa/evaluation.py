@@ -167,7 +167,10 @@ class ModelEvaluator:
         # {model name -> {metric_key: metric_value}}
         self.results_to_write = defaultdict(dict)
         self.use_ipa_tokenise = use_ipa_tokenise
-        self.tokenise_options = tokenise_options
+        if tokenise_options is None:
+            self.tokenise_options = {}
+        else:
+            self.tokenise_options = tokenise_options
 
     def eval_edit_distances(self, model_name, predictions, references, compute_by_token_error_rates=False):
         """Computes edit distance errors and by-token (by-phoneme) error rates for the specified model.
