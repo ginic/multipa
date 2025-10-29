@@ -143,6 +143,42 @@ def calculate_by_token_error_rates(
 
     return error_rates
 
+def get_token_confusion_matrix(
+    substitutions: Counter[tuple[str , str]],
+    deletions: Counter[str], insertions: Counter[str],
+    true_token_counts: Counter[str] | dict[str, int],
+    default_keys: None | list[str],
+    empty_token_symbol = EPS):
+    # Nested counters which will be turned into dataframe
+    if default_keys is None:
+        default_keys = []
+
+    desired_keys = set(true_token_counts.keys()) | set(default_keys)
+    # start by assuming perfect performance, then subtract results from there
+    # {(ref, prediction) -> count}
+    conf_matrix_dict = Counter()
+    for k in desired_keys:
+        conf_matrix_dict[(k, k)] = true_token_counts.get((k, k), 0)
+
+    # Handle substitutions
+    for (ref, pred), count in substitutions.items():
+        conf_matrix_dict[(ref, pred)] += count
+        conf_matrix_dict[(ref, ref)] -= count
+
+    for ref, count in deletions.items():
+        conf_matrix_dict[(ref, empty_token_symbol)] += count
+        conf_matrix_dict[(ref, ref)] -= count
+
+    for extra_tok, count in insertions.items():
+        conf_matrix_dict[(empty_token_symbol, extra_tok)] += count
+
+    # Convert the combined list to a DataFrame
+    confusion_matrix_df = pd.DataFrame(
+        [t[0], t[1], count for t, count in conf_matrix_dict.items()],
+        columns=["reference", "predicted", "count"])
+
+    return confusion_matrix_df
+
 
 def compute_error_rate_confidence_intervals_df(
     error_rate_df: pd.DataFrame,
