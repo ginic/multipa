@@ -13,6 +13,7 @@ import datasets
 import evaluate
 import ipatok
 import kaldialign
+import numpy as np
 import pandas as pd
 import panphon.distance
 import transformers
@@ -141,6 +142,40 @@ def calculate_by_token_error_rates(
             error_rates[tok] = tok_errors / tok_count
 
     return error_rates
+
+
+def compute_error_rate_confidence_intervals_df(
+    error_rate_df: pd.DataFrame,
+    count_df: pd.DataFrame,
+    error_rate_join_key: str,
+    count_join_key: str,
+    error_rate_col: str,
+    count_col: str,
+    interval_const: float = 1.96,
+    confidence_interval_col: str = "confidence_interval",
+):
+    """Computes error rates for each vowel with a confidence interval of according to
+    https://machinelearningmastery.com/report-classifier-performance-confidence-intervals/.
+    The default settings give a confidence interval of 95%.
+
+    Args:
+        error_rate_df: DataFrame containing phone error rates.
+        count_df: DataFrame containing phone counts for computing confidence intervals.
+        error_rate_join_key: Column name in error_rate_df to use for inner join.
+        count_join_key: Column name in count_df to use for inner join.
+        error_rate_col: Column name in error_rate_df containing the error rate values.
+        count_col: Column name in count_df containing the phone count values.
+        interval_const: Constant multiplier for confidence interval. Defaults to 1.96 for 95% CI.
+        confidence_interval_col: Desired Name for the output confidence interval column.
+            Defaults to 'confidence_interval'.
+
+    Returns:
+        Joined DataFrame with both error rates and computed confidence intervals.
+    """
+    joined_df = pd.merge(error_rate_df, count_df, left_on=error_rate_join_key, right_on=count_join_key, how="inner")
+    error_series = joined_df[error_rate_col]
+    joined_df[confidence_interval_col] = interval_const * np.sqrt((error_series * (1 - error_series)) / joined_df[count_col])
+    return joined_df
 
 
 class ModelEvaluator:
