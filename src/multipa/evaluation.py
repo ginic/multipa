@@ -185,7 +185,7 @@ def get_token_confusion_matrix(
     # {(ref, prediction) -> count}
     conf_matrix_dict = Counter()
     for k in desired_keys:
-        conf_matrix_dict[(k, k)] = true_token_counts.get((k, k), 0)
+        conf_matrix_dict[(k, k)] = true_token_counts.get(k, 0)
 
     # Handle substitutions
     for (ref, pred), count in substitutions.items():

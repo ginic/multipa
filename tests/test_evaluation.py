@@ -3,7 +3,13 @@ from collections import Counter
 import pandas as pd
 import pytest
 
-from multipa.evaluation import ModelEvaluator, compute_edit_distance_errors, calculate_by_token_error_rates
+from multipa.evaluation import (
+    ModelEvaluator,
+    compute_edit_distance_errors,
+    calculate_by_token_error_rates,
+    get_token_confusion_matrix,
+    EPS,
+)
 
 
 @pytest.mark.parametrize(
@@ -182,3 +188,188 @@ def test_model_evaluator(tmp_path):
         "by_token_error_rates",
     ]
     assert set(test_df.columns) == set(expected_columns)
+
+
+@pytest.mark.parametrize(
+    "substitutions,deletions,insertions,true_token_counts,default_keys,empty_symbol,expected_rows",
+    [
+        # Test 1: Perfect predictions - no errors
+        (
+            Counter(),
+            Counter(),
+            Counter(),
+            Counter({"p": 5, "t": 3, "k": 2}),
+            None,
+            EPS,
+            [
+                ("p", "p", 5),
+                ("t", "t", 3),
+                ("k", "k", 2),
+            ],
+        ),
+        # Test 2: Only substitutions
+        (
+            Counter({("p", "b"): 2, ("t", "d"): 1}),
+            Counter(),
+            Counter(),
+            {"p": 5, "t": 3},
+            None,
+            EPS,
+            [
+                ("p", "p", 3),  # 5 total - 2 substituted
+                ("p", "b", 2),  # 2 substitutions
+                ("t", "t", 2),  # 3 total - 1 substituted
+                ("t", "d", 1),  # 1 substitution
+            ],
+        ),
+        # Test 3: Only deletions
+        (
+            Counter(),
+            Counter({"ə": 3, "ɹ": 1}),
+            Counter(),
+            {"ə": 10, "ɹ": 5, "t": 2},
+            None,
+            EPS,
+            [
+                ("ə", "ə", 7),  # 10 total - 3 deleted
+                ("ə", EPS, 3),  # 3 deletions
+                ("ɹ", "ɹ", 4),  # 5 total - 1 deleted
+                ("ɹ", EPS, 1),  # 1 deletion
+                ("t", "t", 2),  # no errors
+            ],
+        ),
+        # Test 4: Only insertions
+        (
+            Counter(),
+            Counter(),
+            Counter({"x": 2, "y": 1}),
+            {"p": 3, "t": 2},
+            None,
+            EPS,
+            [
+                ("p", "p", 3),
+                ("t", "t", 2),
+                (EPS, "x", 2),  # 2 insertions
+                (EPS, "y", 1),  # 1 insertion
+            ],
+        ),
+        # Test 5: Mixed errors
+        (
+            Counter({("p", "b"): 1, ("ð", "d"): 2}),
+            Counter({"t": 1, "ə": 2}),
+            Counter({"ʌ": 1, "ɪ": 1}),
+            {"p": 4, "ð": 5, "t": 3, "ə": 8},
+            None,
+            EPS,
+            [
+                ("p", "p", 3),  # 4 - 1 substituted
+                ("p", "b", 1),
+                ("ð", "ð", 3),  # 5 - 2 substituted
+                ("ð", "d", 2),
+                ("t", "t", 2),  # 3 - 1 deleted
+                ("t", EPS, 1),
+                ("ə", "ə", 6),  # 8 - 2 deleted
+                ("ə", EPS, 2),
+                (EPS, "ʌ", 1),
+                (EPS, "ɪ", 1),
+            ],
+        ),
+        # Test 6: Empty inputs
+        (
+            Counter(),
+            Counter(),
+            Counter(),
+            {},
+            None,
+            EPS,
+            [],
+        ),
+        # Test 7: Using default_keys parameter
+        (
+            Counter({("a", "b"): 1}),
+            Counter(),
+            Counter(),
+            {"a": 3},
+            ["a", "c", "d"],  # Include tokens not in true_token_counts
+            EPS,
+            [
+                ("a", "a", 2),  # 3 - 1 substituted
+                ("a", "b", 1),
+                ("c", "c", 0),  # From default_keys, no occurrences
+                ("d", "d", 0),  # From default_keys, no occurrences
+            ],
+        ),
+        # Test 8: Custom empty_token_symbol
+        (
+            Counter(),
+            Counter({"p": 1}),
+            Counter({"x": 1}),
+            {"p": 5, "t": 2},
+            None,
+            "<NULL>",  # Custom empty symbol
+            [
+                ("p", "p", 4),
+                ("p", "<NULL>", 1),
+                ("t", "t", 2),
+                ("<NULL>", "x", 1),
+            ],
+        ),
+        # Test 9: IPA phonemes with realistic errors
+        (
+            Counter({("θ", "f"): 2, ("ð", "d"): 3}),
+            Counter({"ɹ": 1}),
+            Counter({"ə": 2}),
+            {"θ": 10, "ð": 12, "ɹ": 8, "æ": 5},
+            None,
+            EPS,
+            [
+                ("θ", "θ", 8),  # 10 - 2 substituted
+                ("θ", "f", 2),
+                ("ð", "ð", 9),  # 12 - 3 substituted
+                ("ð", "d", 3),
+                ("ɹ", "ɹ", 7),  # 8 - 1 deleted
+                ("ɹ", EPS, 1),
+                ("æ", "æ", 5),  # no errors
+                (EPS, "ə", 2),
+            ],
+        ),
+        # Test 10: All correct values are substituted
+        (
+            Counter({("p", "b"): 5}),
+            Counter(),
+            Counter(),
+            {"p": 5},  # All instances substituted
+            None,
+            EPS,
+            [
+                ("p", "p", 0),
+                ("p", "b", 5),
+            ],
+        )
+
+    ],
+)
+def test_get_token_confusion_matrix(
+    substitutions, deletions, insertions, true_token_counts, default_keys, empty_symbol, expected_rows
+):
+    df = get_token_confusion_matrix(
+        substitutions=substitutions,
+        deletions=deletions,
+        insertions=insertions,
+        true_token_counts=true_token_counts,
+        default_keys=default_keys,
+        empty_token_symbol=empty_symbol,
+    )
+
+    # Check DataFrame structure
+    assert isinstance(df, pd.DataFrame)
+    assert list(df.columns) == ["reference", "predicted", "count"]
+
+    # Check number of rows
+    assert len(df) == len(expected_rows), f"Expected {len(expected_rows)} rows, got {len(df)}"
+
+    # Convert DataFrame to set of tuples for comparison (order doesn't matter)
+    actual_rows = set(df.itertuples(index=False, name=None))
+    expected_rows_set = set(expected_rows)
+
+    assert actual_rows == expected_rows_set, f"Rows mismatch.\nExpected: {expected_rows_set}\nActual: {actual_rows}"
