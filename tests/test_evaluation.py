@@ -147,8 +147,12 @@ def test_model_evaluator(tmp_path):
             "deletions",
         ]
     )
+
     assert set(metrics.keys()) == expected_metrics_keys
     assert model_eval.results_to_write == non_empty_expected
+
+    expected_true_token_counts = {"p": 1, "o": 1}
+    assert model_eval._true_token_counts["test_model"] == expected_true_token_counts
 
     hallucinations = model_eval.eval_empty_transcriptions("test_model", prediction)
     assert hallucinations == {
@@ -157,6 +161,10 @@ def test_model_evaluator(tmp_path):
         "substitutions": [{}],
         "deletions": [{}],
     }
+
+    # token counts remain unchanged
+    assert model_eval._true_token_counts["test_model"] == expected_true_token_counts
+
     all_expected = {
         "test_model": {
             "mean_phone_error_rate": 0.5,
@@ -345,8 +353,7 @@ def test_model_evaluator(tmp_path):
                 ("p", "p", 0),
                 ("p", "b", 5),
             ],
-        )
-
+        ),
     ],
 )
 def test_get_token_confusion_matrix(

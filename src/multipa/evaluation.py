@@ -270,10 +270,17 @@ class ModelEvaluator:
         else:
             self.tokenise_options = tokenise_options
 
+        # Stores the token/phone counts for each model according
+        # to the references seen to that point
+        self._true_token_counts = defaultdict(Counter)
+
     def eval_edit_distances(self, model_name, predictions, references, compute_by_token_error_rates=False):
         """Computes edit distance errors and by-token (by-phoneme) error rates for the specified model.
-        Model-level results are saved in the current ModelEvaluator instance. Example-level results for
-        substitutions, deletions and insertions are returned in the form
+        Model-level results and token counts from the references
+        are saved in the current ModelEvaluator instance.
+
+        Example-level results for substitutions, deletions and insertions
+        are returned in the form
         {error_type_key -> [{affected_token -> count_of_errors}]}.
 
         Args:
@@ -304,6 +311,7 @@ class ModelEvaluator:
         total_subs = collate_edit_distances(subs)
         total_deletions = collate_edit_distances(deletions)
         total_inserts = collate_edit_distances(inserts)
+        self._true_token_counts[model_name] = self._true_token_counts[model_name] + true_token_counts
 
         for k, curr_counts in [
             (ModelEvaluator.substitutions_key, total_subs),
@@ -318,7 +326,9 @@ class ModelEvaluator:
 
         # Only compute by-token error rates when requested (for non-empty transcriptions)
         if compute_by_token_error_rates:
-            by_token_error_rates = calculate_by_token_error_rates(true_token_counts, total_subs, total_deletions)
+            by_token_error_rates = calculate_by_token_error_rates(
+                self._true_token_counts[model_name], total_subs, total_deletions
+            )
             self.results_to_write[model_name][ModelEvaluator.by_token_error_rates] = dict(by_token_error_rates)
 
         # Return example-level edit-distance results
@@ -376,9 +386,28 @@ class ModelEvaluator:
         df.index.name = ModelEvaluator.model_key
         df.to_csv(csv_path, columns=[c for c in desired_cols if c in df.columns])
 
+    def get_token_confusion_matrix(self, model_name: str) -> pd.DataFrame:
+        """Returns the by-token or by-phoneme confusion matrix for the model
+        computed by the edit distances on the predictions, references seen thus far.
+
+        Args:
+            model_name: str, the model_name or identifier to lookup results for
+
+        Returns:
+            pd.DataFrame: Confusion matrix with columns ["reference", "predicted", "count"], where each row
+            represents a (reference, predicted) pair and its count. Includes both correct predictions
+            (diagonal) and errors (off-diagonal)
+        """
+        return get_token_confusion_matrix(
+            self.results_to_write[model_name][ModelEvaluator.substitutions_key],
+            self.results_to_write[model_name][ModelEvaluator.deletions_key],
+            self.results_to_write[model_name][ModelEvaluator.insertions_key],
+            self._true_token_counts[model_name],
+        )
+
     def write_edit_distance_results(self, model_name: str | Path, directory: Path):
-        """Writes counts of edit distance errors by symbol to CSV files.
-        Each model will have 3 corresponding CSVs, one each for subsitutions, deletions and insertions.
+        """Writes counts of edit distance errors and the confusion matrix by symbol to CSV files.
+        Each model will have 4 corresponding CSVs, one each for subsitutions, deletions and insertions.
 
         Args:
             model_name: The name of the model being evaluated
@@ -400,6 +429,9 @@ class ModelEvaluator:
         )
         substitutions_df.sort_values(by=subs_col, inplace=True, ascending=False)
         substitutions_df.to_csv(directory / f"{csv_base_name}_{ModelEvaluator.substitutions_key}.csv", index=False)
+
+        conf_matrix = self.get_token_confusion_matrix(model_name)
+        conf_matrix.to_csv(directory / f"{csv_base_name}_confusion_matrix.csv", index=False)
 
 
 def preprocess_test_data(test_dataset: datasets.Dataset, is_remove_space: bool = False, num_proc: int | None = None):
