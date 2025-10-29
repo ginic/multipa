@@ -143,12 +143,39 @@ def calculate_by_token_error_rates(
 
     return error_rates
 
+
 def get_token_confusion_matrix(
-    substitutions: Counter[tuple[str , str]],
-    deletions: Counter[str], insertions: Counter[str],
+    substitutions: Counter[tuple[str, str]],
+    deletions: Counter[str],
+    insertions: Counter[str],
     true_token_counts: Counter[str] | dict[str, int],
-    default_keys: None | list[str],
-    empty_token_symbol = EPS):
+    default_keys: None | list[str] = None,
+    empty_token_symbol=EPS,
+):
+    """Constructs a confusion matrix DataFrame from edit distance error counts.
+
+    The confusion matrix shows the relationship between reference tokens (true labels) and predicted tokens.
+    Perfect predictions appear where reference == predicted.
+    Errors appear as follows:
+        - substitutions as (ref_token, pred_token)
+        - deletions as (ref_token, empty_symbol)
+        - insertions as (empty_symbol, pred_token).
+
+    Args:
+        substitutions: Counter mapping (reference_token, predicted_token) pairs to substitution counts.
+        deletions: Counter mapping deleted reference tokens to deletion counts.
+        insertions: Counter mapping inserted tokens to insertion counts.
+        true_token_counts: Counter or dict mapping reference tokens to their total occurrence counts.
+        default_keys: Optional list of tokens to include in the matrix even if not present in true_token_counts.
+            Defaults to None (empty list).
+        empty_token_symbol: Symbol to represent empty/null tokens for deletions and insertions.
+            Defaults to EPS ("***").
+
+    Returns:
+        pd.DataFrame: Confusion matrix with columns ["reference", "predicted", "count"], where each row
+            represents a (reference, predicted) pair and its count. Includes both correct predictions
+            (diagonal) and errors (off-diagonal).
+    """
     # Nested counters which will be turned into dataframe
     if default_keys is None:
         default_keys = []
@@ -174,8 +201,8 @@ def get_token_confusion_matrix(
 
     # Convert the combined list to a DataFrame
     confusion_matrix_df = pd.DataFrame(
-        [t[0], t[1], count for t, count in conf_matrix_dict.items()],
-        columns=["reference", "predicted", "count"])
+        [(t[0], t[1], count) for t, count in conf_matrix_dict.items()], columns=["reference", "predicted", "count"]
+    )
 
     return confusion_matrix_df
 
