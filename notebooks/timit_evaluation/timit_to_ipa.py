@@ -4,6 +4,7 @@ from phonecodes import phonecodes
 
 print(phonecodes.CODES)
 
+
 def read_phn_file(phn_path):
     """Read a .PHN file and return a list of TIMIT symbols"""
     phones = []
@@ -13,6 +14,7 @@ def read_phn_file(phn_path):
             if len(parts) == 3:
                 phones.append(parts[2])
     return phones
+
 
 def timit_phones_to_ipa(phones):
     """Convert a sequence of TIMIT phones to IPA"""
@@ -49,16 +51,16 @@ def process_timit_directory(root_dir, output_csv, dataset_name):
     data.sort(key=lambda x: x[0])
 
     # Write to CSV
-    with open(output_csv, "w", newline='', encoding='utf-8') as f:
+    with open(output_csv, "w", newline="", encoding="utf-8") as f:
         writer = csv.writer(f)
         writer.writerow(["audio_filename", "ipa_transcription"])
         writer.writerows(data)
 
     print(f"Done! Wrote {len(data)} sorted entries to {output_csv}")
 
+
 # Example usage
 if __name__ == "__main__":
     root_complete = "/Users/parthbhangla/Desktop/Multipa_Datasets/TIMIT/COMPLETE"
 
     process_timit_directory(root_complete, "complete_ipa.csv", "COMPLETE")
-

@@ -53,7 +53,8 @@ class DataCollatorCTCWithPadding:
     Args:
         processor (:class:`~transformers.Wav2Vec2Processor`)
             The processor used for proccessing the data.
-        padding (:obj:`bool`, :obj:`str` or :class:`~transformers.tokenization_utils_base.PaddingStrategy`, `optional`, defaults to :obj:`True`):
+        padding (:obj:`bool`, :obj:`str` or :class:`~transformers.tokenization_utils_base.PaddingStrategy`,
+            `optional`, defaults to :obj:`True`):
             Select a strategy to pad the returned sequences (according to the model's padding side and padding index)
             among:
             * :obj:`True` or :obj:`'longest'`: Pad to the longest sequence in the batch (or no padding if only a single
@@ -183,9 +184,7 @@ def is_valid_sample(batch):
 
 
 def is_valid_post_tokenization(batch):
-    return (
-        "input_values" in batch and len(batch["input_values"]) > 0 and "labels" in batch and len(batch["labels"]) > 0
-    )
+    return "input_values" in batch and len(batch["input_values"]) > 0 and "labels" in batch and len(batch["labels"]) > 0
 
 
 def main_cli():
@@ -232,12 +231,10 @@ def main_cli():
         "--mask_time_length",
         type=int,
         default=10,
-        help="Mask time length for the model. If you know your training data contains audio less than 0.2 seconds, " 
-            "make the mask time length small. Defaults to 10.",
+        help="Mask time length for the model. If you know your training data contains audio less than 0.2 seconds, "
+        "make the mask time length small. Defaults to 10.",
     )
-    parser.add_argument(
-        "-g", "--use_gpu", action="store_true", help="Use this flag if a GPU is available for training."
-    )
+    parser.add_argument("-g", "--use_gpu", action="store_true", help="Use this flag if a GPU is available for training.")
     parser.add_argument(
         "-bm",
         "--base_model",
@@ -255,7 +252,10 @@ def main_cli():
         "--num_gpus",
         type=int,
         default=0,
-        help="If you're using GPUs and would like to check that they are all found correctly, set this to the expected number of GPUs >=1. Otherwise this parameter is ignored.",
+        help=(
+            "If you're using GPUs and would like to check that they are all found correctly, set this to "
+            "the expected number of GPUs >=1. Otherwise this parameter is ignored."
+        ),
     )
     parser.add_argument(
         "-o", "--output_dir", type=str, help="Specify the directory to save files for vocab, stats and trained models."
@@ -299,6 +299,7 @@ def main_cli():
 
     subparsers = parser.add_subparsers(help="Specify which corpus you'll be using", dest="corpus", required=True)
 
+    # CommonV
     comm_voice_subparser = subparsers.add_parser(
         COMMONVOICE_KEY, help="Use the Common Voice corpus version 11 from the Huggingface data repo."
     )
@@ -385,8 +386,8 @@ def main_cli():
         "--percent_female",
         type=float,
         default=0.5,
-        help="The percentage (as float) of training examples that should come from female speakers. " 
-            "Use a negative value to turn off sampling by gender splits. Defaults to 0.5",
+        help="The percentage (as float) of training examples that should come from female speakers. "
+        "Use a negative value to turn off sampling by gender splits. Defaults to 0.5",
     )
     buckeye_subparser.add_argument(
         "-sr",
@@ -403,15 +404,13 @@ def main_cli():
     )
 
     buckeye_subparser.add_argument(
-        "--use_val_split_in_training", 
+        "--use_val_split_in_training",
         action="store_true",
-        help="Use this flag to include validation split in the training data"
+        help="Use this flag to include validation split in the training data",
     )
 
     buckeye_subparser.add_argument(
-        "--use_test_split_in_training", 
-        action="store_true", 
-        help="Use this flag to include test split in the training data"
+        "--use_test_split_in_training", action="store_true", help="Use this flag to include test split in the training data"
     )
 
     args = parser.parse_args()
@@ -453,7 +452,7 @@ def main_cli():
             speaker_restriction=args.speaker_restriction,
             percent_female=args.percent_female,
             use_val_split_in_training=args.use_val_split_in_training,
-            use_test_split_in_training=args.use_test_split_in_training
+            use_test_split_in_training=args.use_test_split_in_training,
         )
 
     elif args.corpus == COMMONVOICE_KEY:
@@ -537,12 +536,8 @@ def main_cli():
     # Critically, this assigns the "labels" values
     # Try removing `num_proc=` if you encounter any errors while running this part
     processor_func = lambda x: prepare_dataset_ipa(x, processor_ipa)
-    full_train_data = full_train_data.map(
-        processor_func, remove_columns=full_train_data.column_names, num_proc=args.num_proc
-    )
-    full_valid_data = full_valid_data.map(
-        processor_func, remove_columns=full_valid_data.column_names, num_proc=args.num_proc
-    )
+    full_train_data = full_train_data.map(processor_func, remove_columns=full_train_data.column_names, num_proc=args.num_proc)
+    full_valid_data = full_valid_data.map(processor_func, remove_columns=full_valid_data.column_names, num_proc=args.num_proc)
 
     # Check that the post-tokenization data is valid
     print("Checking that the post-tokenization data is valid...")
@@ -579,7 +574,9 @@ def main_cli():
         # TODO Look into masking in this model. How does it work, what's the trade-off in tweaking the probability and length
         # TODO This needs to be updated to a later transformers version, see https://github.com/huggingface/transformers/issues/15366
         mask_time_prob=0.05,
-        mask_time_length=args.mask_time_length,  # If this is too big, you'll get `ValueError: `mask_length` has to be smaller than `sequence_length`...`, so if you have very short audio in training data, reduce the value
+        # If this is too big, you'll get `ValueError: `mask_length` has to be smaller than
+        # `sequence_length`...`, so if you have very short audio in training data, reduce the value
+        mask_time_length=args.mask_time_length,
         layerdrop=0.1,
         ctc_loss_reduction="mean",
         pad_token_id=processor_ipa.tokenizer.pad_token_id,

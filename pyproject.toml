@@ -34,7 +34,7 @@ dependencies = [
     "librosa==0.9.2",
     "mecab-python3==1.0.8",
     "pandas",
-    "phonecodes==1.2.2",
+    "phonecodes>=1.2.3",
     "panphon @ git+https://github.com/dmort27/panphon.git@6acd3833743a49e63941a0b740ee69eae1dafc1c",
     "pyarrow",
     "pydub==0.25.1",
@@ -55,12 +55,12 @@ test = [
 # Dependencies that are useful only to developers, like an autoformatter and support for visualizations in jupyter notebooks go here
 dev = [
     "allosaurus",
-    "black",
     "epitran",
     "jinja2",
     "huggingface_hub",
     "matplotlib",
     "phonemizer",
+    "ruff>=0.14.1",
     "seaborn",
     "scipy",
     "tqdm"
@@ -78,5 +78,17 @@ multipa-preprocess = "multipa:preprocess.main_cli"
 multipa-train = "multipa:main.main_cli"
 multipa-evaluate = "multipa:evaluation.main_cli"
 
-[tools.setuptools]
+[tool.setuptools]
 include-package-data = true
+
+
+[tool.ruff]
+#GitHub editor is 127 chars wide
+line-length = 127
+# Don't care about Jupyter notebooks for checks
+include= ["*.py", "**/pyproject.toml"]
+
+[tool.ruff.lint]
+select=["E","F"]
+# Allow using lambda functions because they're useful with HuggingFace datasets library
+ignore=["E731"]

@@ -119,9 +119,7 @@ def load_dataset_by_corpus_and_language(corpus, language, cache_dir):
         else:
             train = load_dataset("mozilla-foundation/common_voice_11_0", language, split="train", cache_dir=cache_dir)
 
-            valid = load_dataset(
-                "mozilla-foundation/common_voice_11_0", language, split="validation", cache_dir=cache_dir
-            )
+            valid = load_dataset("mozilla-foundation/common_voice_11_0", language, split="validation", cache_dir=cache_dir)
     else:
         raise ValueError(f"'{corpus}' is not a valid corpus option.")
 
@@ -153,7 +151,8 @@ def process_buckeye_subfolder(
     see https://huggingface.co/docs/hub/datasets-file-names-and-splits#keywords.
 
     Args:
-        input_directory (Path): A pre-defined split of the Buckeye corpus containing audio files, transcription_data.txt and orthographic_data.txt
+        input_directory (Path): A pre-defined split of the Buckeye corpus containing audio files,
+            transcription_data.txt and orthographic_data.txt
         output_dir (Path): Desired output directory
         hugging_face_split (str): identifies the name of the split for HuggingFace
         is_keep_interrupts (bool): Set to True to keep the interrupt symbol in IPA output. Defaults to False
@@ -181,13 +180,9 @@ def process_buckeye_subfolder(
     )
     transcriptions_df = pd.merge(transcriptions_df, orthography_df, how="left", on=utt_id)
     print("Number of transcripts read:", len(transcriptions_df))
-    transcriptions_df["ipa"] = transcriptions_df["buckeye_transcript"].apply(
-        lambda x: buckeye_to_ipa(x, is_keep_interrupts)
-    )
+    transcriptions_df["ipa"] = transcriptions_df["buckeye_transcript"].apply(lambda x: buckeye_to_ipa(x, is_keep_interrupts))
     # Filter out empty transcriptions (This should only remove rows when is_keep_interrupts=False)
-    transcriptions_df = transcriptions_df.loc[
-        (transcriptions_df["ipa"] != "") & (~transcriptions_df["ipa"].str.isspace())
-    ]
+    transcriptions_df = transcriptions_df.loc[(transcriptions_df["ipa"] != "") & (~transcriptions_df["ipa"].str.isspace())]
     print("Number of transcripts after filtering interrupts:", len(transcriptions_df))
 
     # Join in demographic info
@@ -257,13 +252,16 @@ def main_cli():
         help="Specify the languages to include in the test dataset.",
     )
 
-    librispeech_subparser = subparsers.add_parser(
+    librispeech_subparser = subparsers.add_parser(  # noqa: F841
         LIBRISPEECH_KEY, help="Use the Librispeech ASR English corpus from the Huggingface data repo."
     )
 
     buckeye_subparser = subparsers.add_parser(
         BUCKEYE_KEY,
-        help="Use the Buckeye corpus with pre-defined train/test splits in local files. This just turns it into the HuggingFace 'audiofolder' format with IPA transcriptions.",
+        help=(
+            "Use the Buckeye corpus with pre-defined train/test splits in local files. This just turns it "
+            "into the HuggingFace 'audiofolder' format with IPA transcriptions."
+        ),
     )
     buckeye_subparser.add_argument(
         "input_dir",
@@ -273,7 +271,10 @@ def main_cli():
     buckeye_subparser.add_argument(
         "--keep_interrupts",
         action="store_true",
-        help=f"Use this flag if you want to keep the interrupt symbol '{BUCKEYE_INTERRUPT_SYMBOL}' in transcripts when converting to IPA",
+        help=(
+            f"Use this flag if you want to keep the interrupt symbol '{BUCKEYE_INTERRUPT_SYMBOL}' in "
+            "transcripts when converting to IPA"
+        ),
     )
 
     args = parser.parse_args()
@@ -303,9 +304,7 @@ def main_cli():
         duration = end - start
         print(f"Elapsed time for Buckeye: {duration}")
         with open(stats_file, "a") as f:
-            f.write(
-                "{}\t{}\t{}\t{}\t{}\n".format("buckeye", sizes["train"], sizes["validation"], sizes["test"], duration)
-            )
+            f.write("{}\t{}\t{}\t{}\t{}\n".format("buckeye", sizes["train"], sizes["validation"], sizes["test"], duration))
 
     elif args.corpus in [COMMONVOICE_KEY, LIBRISPEECH_KEY]:
         if args.corpus == COMMONVOICE_KEY:

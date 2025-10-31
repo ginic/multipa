@@ -27,9 +27,7 @@ class English2IPA:
             filename (str, optional): Path to ipa dictionary filename. Defaults to "cmudict-0.7b-ipa.txt".
         """
         if filename is None:
-            self.prondict = make_prondict(
-                importlib.resources.files("multipa.resources").joinpath("cmudict-0.7b-ipa.txt")
-            )
+            self.prondict = make_prondict(importlib.resources.files("multipa.resources").joinpath("cmudict-0.7b-ipa.txt"))
         else:
             self.prondict = make_prondict(filename)
         self.keep_suprasegmental = keep_suprasegmental

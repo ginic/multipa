@@ -9,17 +9,17 @@ import romkan
 MECAB = MeCab.Tagger()
 
 
-class Japanese2IPA():
+class Japanese2IPA:
     IGNORE_JA_REGEX = "[、,。]"
     NON_PUNCT = "\s\w"
-    roman_to_ipa = {# consonants
+    roman_to_ipa = {  # consonants
         "pp": "pː",
         "tt": "tː",
         "dd": "dː",
         "kk": "kː",
         "r": "ɾ",
-        "y": "ɰ", # temporary conversion for avoiding confusion                                                                                                                                     
-        # "hi": "çi",                                                                                                                                                                               
+        "y": "ɰ",  # temporary conversion for avoiding confusion
+        # "hi": "çi",
         "hy": "ç",
         "sh": "ɕ",
         "ssh": "ɕː",
@@ -49,7 +49,7 @@ class Japanese2IPA():
         "ou": "o̞ː",
         "oo": "o̞ː",
         "wo": "o̞",
-        "-": "ː"
+        "-": "ː",
     }
 
     def remove_ja_punct(self, sent: str) -> str:
@@ -77,7 +77,7 @@ class Japanese2IPA():
                 kana += columns[9]
                 kana += " "
         roman = romkan.to_roma(kana)
-        # from longest                                                                                                                                                                                    
+        # from longest
         four = dict([(k, v) for k, v in self.roman_to_ipa.items() if len(k) == 4])
         three = dict([(k, v) for k, v in self.roman_to_ipa.items() if len(k) == 3])
         two = dict([(k, v) for k, v in self.roman_to_ipa.items() if len(k) == 2])

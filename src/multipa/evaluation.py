@@ -6,7 +6,6 @@ Currently only Buckeye test split data is supported for evaluation.
 
 import argparse
 from collections import defaultdict, Counter
-from copy import deepcopy
 from pathlib import Path
 from typing import Any
 
@@ -14,6 +13,7 @@ import datasets
 import evaluate
 import ipatok
 import kaldialign
+import numpy as np
 import pandas as pd
 import panphon.distance
 import transformers
@@ -46,8 +46,13 @@ def clean_model_name(model_name: str | Path) -> str:
 
 
 def compute_edit_distance_errors(prediction: str, reference: str, use_ipa_tokenise: bool = True, **kwargs):
-    """Compares two strings and returns counts of the substitions, deletions and insertions
+    """Tokenizes and compares two strings and returns counts of the substitions, deletions and insertions
     between them.
+
+    Tokenization is done in this function to ensure that the same tokenization strategy is used on both
+    prediction and reference. This is important to make sure that differences due to symbol inventories and
+    model vocabularies are minimized. To reduce complexity, we also choose to use the ipatok
+    library, rather than the wav2vec model tokenizers.
 
     Results are in the following format:
     - Substitutions: dictionary mapping reference token to dict mapping substituted token to count
@@ -57,11 +62,13 @@ def compute_edit_distance_errors(prediction: str, reference: str, use_ipa_tokeni
     Args:
         prediction: Predicted transcription
         reference: Reference Transcription
-        is_use_ipa_tokenise: Set flag to use IPA phone tokenization heuristics rather than character level differences. Defaults to True.
+        is_use_ipa_tokenise: Set flag to use IPA phone tokenization heuristics rather than character level
+            differences. Defaults to True.
         kwargs: any arguments to pass to the ipatok tokenise function
 
     Returns:
-        tuple[Counter[tuple[str, str]], Counter[str], Counter[str]: Substitutions, deletions, insertions
+        tuple[Counter[tuple[str, str]], Counter[str], Counter[str], Counter[str]: Substitutions, deletions, insertions,
+            true token counts
     """
     if use_ipa_tokenise:
         try:
@@ -75,6 +82,7 @@ def compute_edit_distance_errors(prediction: str, reference: str, use_ipa_tokeni
         pred_tokens = list(prediction)
         ref_tokens = list(reference)
 
+    true_token_counts = Counter(ref_tokens)
     subs = Counter()
     insertions = Counter()
     deletions = Counter()
@@ -89,15 +97,148 @@ def compute_edit_distance_errors(prediction: str, reference: str, use_ipa_tokeni
         elif r != p:
             subs[(r, p)] += 1
 
-    return subs, deletions, insertions
+    return subs, deletions, insertions, true_token_counts
 
 
 def collate_edit_distances(edit_dist_counter: list[Counter[Any]]) -> Counter[Any]:
+    """
+    Collates edit distance errors from a list of counters.
+
+    Args:
+        edit_dist_counter (list[Counter[Any]]): List of counters containing edit distance errors.
+
+    Returns:
+        Counter[Any]: A single counter with the aggregated counts.
+    """
     final_counts = Counter()
     for c in edit_dist_counter:
         final_counts += c
-
     return final_counts
+
+
+def calculate_by_token_error_rates(
+    token_counts: Counter[str], substitutions: Counter[tuple[str, str]], deletions: Counter[str]
+) -> dict[str, float]:
+    """Computes error rates for each token based on substitutions and deletions.
+
+    Args:
+        token_counts: Counter mapping tokens to their total occurrences in references.
+        substitutions: Counter mapping (reference_token, predicted_token) pairs to substitution counts.
+        deletions: Counter mapping deleted tokens to deletion counts.
+
+    Returns:
+        dict[str, float]: Dictionary mapping each token to its error rate (ratio of errors to total occurrences).
+    """
+    # Flatten substitutions to make them easier to work with
+    subs_by_references = Counter()
+    for sub_pair, sub_count in substitutions.items():
+        sub_reference = sub_pair[0]
+        subs_by_references[sub_reference] += sub_count
+
+    error_rates = {}
+    for tok, tok_count in token_counts.items():
+        if tok_count > 0:
+            tok_errors = subs_by_references[tok] + deletions[tok]
+            error_rates[tok] = tok_errors / tok_count
+
+    return error_rates
+
+
+def get_token_confusion_matrix(
+    substitutions: Counter[tuple[str, str]],
+    deletions: Counter[str],
+    insertions: Counter[str],
+    true_token_counts: Counter[str] | dict[str, int],
+    default_keys: None | list[str] = None,
+    empty_token_symbol=EPS,
+):
+    """Constructs a confusion matrix DataFrame from edit distance error counts.
+
+    The confusion matrix shows the relationship between reference tokens (true labels) and predicted tokens.
+    Perfect predictions appear where reference == predicted.
+    Errors appear as follows:
+        - substitutions as (ref_token, pred_token)
+        - deletions as (ref_token, empty_symbol)
+        - insertions as (empty_symbol, pred_token).
+
+    Args:
+        substitutions: Counter mapping (reference_token, predicted_token) pairs to substitution counts.
+        deletions: Counter mapping deleted reference tokens to deletion counts.
+        insertions: Counter mapping inserted tokens to insertion counts.
+        true_token_counts: Counter or dict mapping reference tokens to their total occurrence counts.
+        default_keys: Optional list of tokens to include in the matrix even if not present in true_token_counts.
+            Defaults to None (empty list).
+        empty_token_symbol: Symbol to represent empty/null tokens for deletions and insertions.
+            Defaults to EPS ("***").
+
+    Returns:
+        pd.DataFrame: Confusion matrix with columns ["reference", "predicted", "count"], where each row
+            represents a (reference, predicted) pair and its count. Includes both correct predictions
+            (diagonal) and errors (off-diagonal).
+    """
+    # Nested counters which will be turned into dataframe
+    if default_keys is None:
+        default_keys = []
+
+    desired_keys = set(true_token_counts.keys()) | set(default_keys)
+    # start by assuming perfect performance, then subtract results from there
+    # {(ref, prediction) -> count}
+    conf_matrix_dict = Counter()
+    for k in desired_keys:
+        conf_matrix_dict[(k, k)] = true_token_counts.get(k, 0)
+
+    # Handle substitutions
+    for (ref, pred), count in substitutions.items():
+        conf_matrix_dict[(ref, pred)] += count
+        conf_matrix_dict[(ref, ref)] -= count
+
+    for ref, count in deletions.items():
+        conf_matrix_dict[(ref, empty_token_symbol)] += count
+        conf_matrix_dict[(ref, ref)] -= count
+
+    for extra_tok, count in insertions.items():
+        conf_matrix_dict[(empty_token_symbol, extra_tok)] += count
+
+    # Convert the combined list to a DataFrame
+    confusion_matrix_df = pd.DataFrame(
+        [(t[0], t[1], count) for t, count in conf_matrix_dict.items()], columns=["reference", "predicted", "count"]
+    )
+
+    return confusion_matrix_df
+
+
+def compute_error_rate_confidence_intervals_df(
+    error_rate_df: pd.DataFrame,
+    count_df: pd.DataFrame,
+    error_rate_join_key: str,
+    count_join_key: str,
+    error_rate_col: str,
+    count_col: str,
+    interval_const: float = 1.96,
+    confidence_interval_col: str = "confidence_interval",
+):
+    """Computes error rates for each vowel with a confidence interval of according to
+    https://machinelearningmastery.com/report-classifier-performance-confidence-intervals/.
+    The default settings give a confidence interval of 95%.
+
+    Args:
+        error_rate_df: DataFrame containing phone error rates.
+        count_df: DataFrame containing phone counts for computing confidence intervals.
+        error_rate_join_key: Column name in error_rate_df to use for inner join.
+        count_join_key: Column name in count_df to use for inner join.
+        error_rate_col: Column name in error_rate_df containing the error rate values.
+        count_col: Column name in count_df containing the phone count values.
+        interval_const: Constant multiplier for confidence interval. Defaults to 1.96 for 95% CI.
+        confidence_interval_col: Desired Name for the output confidence interval column.
+            Defaults to 'confidence_interval'.
+
+    Returns:
+        Joined DataFrame with both error rates and computed confidence intervals.
+    """
+    joined_df = pd.merge(error_rate_df, count_df, left_on=error_rate_join_key, right_on=count_join_key, how="inner")
+    error_series = joined_df[error_rate_col]
+    joined_df[confidence_interval_col] = interval_const * np.sqrt((error_series * (1 - error_series)) / joined_df[count_col])
+    return joined_df
 
 
 class ModelEvaluator:
@@ -110,8 +251,9 @@ class ModelEvaluator:
     substitutions_key = "substitutions"
     deletions_key = "deletions"
     insertions_key = "insertions"
+    by_token_error_rates = "by_token_error_rates"
 
-    def __init__(self, use_ipa_tokenise: bool = True):
+    def __init__(self, use_ipa_tokenise: bool = True, tokenise_options: None | dict[str, Any] = None):
         """Configure distance calculations and save results for each model
 
         Args:
@@ -123,21 +265,54 @@ class ModelEvaluator:
         # {model name -> {metric_key: metric_value}}
         self.results_to_write = defaultdict(dict)
         self.use_ipa_tokenise = use_ipa_tokenise
+        if tokenise_options is None:
+            self.tokenise_options = {}
+        else:
+            self.tokenise_options = tokenise_options
 
-    def eval_edit_distances(self, model_name, predictions, references):
+        # Stores the token/phone counts for each model according
+        # to the references seen to that point
+        self._true_token_counts = defaultdict(Counter)
+
+    def eval_edit_distances(self, model_name, predictions, references, compute_by_token_error_rates=False):
+        """Computes edit distance errors and by-token (by-phoneme) error rates for the specified model.
+        Model-level results and token counts from the references
+        are saved in the current ModelEvaluator instance.
+
+        Example-level results for substitutions, deletions and insertions
+        are returned in the form
+        {error_type_key -> [{affected_token -> count_of_errors}]}.
+
+        Args:
+            model_name: The model currently being evaluated.
+            predictions: Predictions from the model
+            references: Reference transcriptions
+            compute_by_token_error_rates: If True, compute and store by-token error rates. Defaults to False.
+            kwargs: Passed to ipatok.tokenise
+
+        Returns:
+            dict[str, list[dict[Any, int]]]: example level edit distance errors
+        """
         # Compute errors for each example
         subs, deletions, inserts = [], [], []
 
+        true_token_counts = Counter()
+
         for p, r in zip(predictions, references):
-            s, d, i = compute_edit_distance_errors(p, r, use_ipa_tokenise=self.use_ipa_tokenise)
+            s, d, i, ref_token_counts = compute_edit_distance_errors(
+                p, r, use_ipa_tokenise=self.use_ipa_tokenise, **self.tokenise_options
+            )
             subs.append(s)
             deletions.append(d)
             inserts.append(i)
+            true_token_counts += ref_token_counts
 
         # Save totals for each symbol edit for the current model
         total_subs = collate_edit_distances(subs)
         total_deletions = collate_edit_distances(deletions)
         total_inserts = collate_edit_distances(inserts)
+        self._true_token_counts[model_name] = self._true_token_counts[model_name] + true_token_counts
+
         for k, curr_counts in [
             (ModelEvaluator.substitutions_key, total_subs),
             (ModelEvaluator.deletions_key, total_deletions),
@@ -145,11 +320,18 @@ class ModelEvaluator:
         ]:
             if model_name in self.results_to_write and k in self.results_to_write[model_name]:
                 prev_counts = self.results_to_write[model_name][k]
-                self.results_to_write[model_name][k] = collate_edit_distances([curr_counts, prev_counts])
+                self.results_to_write[model_name][k] = dict(collate_edit_distances([curr_counts, prev_counts]))
             else:
-                self.results_to_write[model_name][k] = curr_counts
+                self.results_to_write[model_name][k] = dict(curr_counts)
 
-        # Return example-level results
+        # Only compute by-token error rates when requested (for non-empty transcriptions)
+        if compute_by_token_error_rates:
+            by_token_error_rates = calculate_by_token_error_rates(
+                self._true_token_counts[model_name], total_subs, total_deletions
+            )
+            self.results_to_write[model_name][ModelEvaluator.by_token_error_rates] = dict(by_token_error_rates)
+
+        # Return example-level edit-distance results
         edit_dist_dict = {
             ModelEvaluator.substitutions_key: subs,
             ModelEvaluator.deletions_key: deletions,
@@ -157,7 +339,7 @@ class ModelEvaluator:
         }
         return edit_dist_dict
 
-    def eval_non_empty_transcriptions(self, model_name, predictions, references) -> dict[str, list[Any]]:
+    def eval_non_empty_transcriptions(self, model_name, predictions, references, **kwargs) -> dict[str, list[Any]]:
         """Compare the predictions and gold-standard references for a model,
         then add results to model results tracker.
         Returns the full detailed evaluation results as a dictionary.
@@ -166,7 +348,9 @@ class ModelEvaluator:
         for k in [ModelEvaluator.per_key, ModelEvaluator.pfer_key, ModelEvaluator.fer_key]:
             self.results_to_write[model_name][k] = metrics[k]
 
-        edit_dist_dict = self.eval_edit_distances(model_name, predictions, references)
+        edit_dist_dict = self.eval_edit_distances(
+            model_name, predictions, references, compute_by_token_error_rates=True, **kwargs
+        )
         metrics.update(edit_dist_dict)
         return metrics
 
@@ -188,32 +372,42 @@ class ModelEvaluator:
         """Write the aggregate evaluation results stored in this object to the specified CSV file.
         Each model is a row, with aggregate (average or total) metrics stored per column
         """
-        summed_results = deepcopy(self.results_to_write)
-
-        for model in summed_results:
-            for k in [ModelEvaluator.substitutions_key, ModelEvaluator.insertions_key, ModelEvaluator.deletions_key]:
-                total = sum(summed_results[model][k].values())
-                summed_results[model][k] = total
-
-        df = pd.DataFrame.from_dict(summed_results, orient="index")
+        df = pd.DataFrame.from_dict(self.results_to_write, orient="index")
         desired_cols = [
-                ModelEvaluator.per_key,
-                ModelEvaluator.pfer_key,
-                ModelEvaluator.fer_key,
-                ModelEvaluator.phone_hallucinations_key,
-                ModelEvaluator.substitutions_key,
-                ModelEvaluator.insertions_key,
-                ModelEvaluator.deletions_key,
-            ]
+            ModelEvaluator.per_key,
+            ModelEvaluator.pfer_key,
+            ModelEvaluator.fer_key,
+            ModelEvaluator.phone_hallucinations_key,
+            ModelEvaluator.substitutions_key,
+            ModelEvaluator.insertions_key,
+            ModelEvaluator.deletions_key,
+            ModelEvaluator.by_token_error_rates,
+        ]
         df.index.name = ModelEvaluator.model_key
-        df.to_csv(
-            csv_path,
-            columns = [c for c in desired_cols if c in df.columns]
+        df.to_csv(csv_path, columns=[c for c in desired_cols if c in df.columns])
+
+    def get_token_confusion_matrix(self, model_name: str) -> pd.DataFrame:
+        """Returns the by-token or by-phoneme confusion matrix for the model
+        computed by the edit distances on the predictions, references seen thus far.
+
+        Args:
+            model_name: str, the model_name or identifier to lookup results for
+
+        Returns:
+            pd.DataFrame: Confusion matrix with columns ["reference", "predicted", "count"], where each row
+            represents a (reference, predicted) pair and its count. Includes both correct predictions
+            (diagonal) and errors (off-diagonal)
+        """
+        return get_token_confusion_matrix(
+            self.results_to_write[model_name][ModelEvaluator.substitutions_key],
+            self.results_to_write[model_name][ModelEvaluator.deletions_key],
+            self.results_to_write[model_name][ModelEvaluator.insertions_key],
+            self._true_token_counts[model_name],
         )
 
     def write_edit_distance_results(self, model_name: str | Path, directory: Path):
-        """Writes counts of edit distance errors by symbol to CSV files.
-        Each model will have 3 corresponding CSVs, one each for subsitutions, deletions and insertions.
+        """Writes counts of edit distance errors and the confusion matrix by symbol to CSV files.
+        Each model will have 4 corresponding CSVs, one each for subsitutions, deletions and insertions.
 
         Args:
             model_name: The name of the model being evaluated
@@ -235,6 +429,9 @@ class ModelEvaluator:
         )
         substitutions_df.sort_values(by=subs_col, inplace=True, ascending=False)
         substitutions_df.to_csv(directory / f"{csv_base_name}_{ModelEvaluator.substitutions_key}.csv", index=False)
+
+        conf_matrix = self.get_token_confusion_matrix(model_name)
+        conf_matrix.to_csv(directory / f"{csv_base_name}_confusion_matrix.csv", index=False)
 
 
 def preprocess_test_data(test_dataset: datasets.Dataset, is_remove_space: bool = False, num_proc: int | None = None):
@@ -274,9 +471,7 @@ def get_torch_device(use_gpu: bool = False):
     return torch.device("cpu")
 
 
-def drop_extra_csv_output_columns(
-    dataset: datasets.Dataset, extra_columns: list[str] | None = None
-) -> datasets.Dataset:
+def drop_extra_csv_output_columns(dataset: datasets.Dataset, extra_columns: list[str] | None = None) -> datasets.Dataset:
     """Removes the specified columns from dataset in place.
 
     Args:
@@ -408,9 +603,7 @@ def main(
 
         if len(non_empty_test_data) > 0:
             print("Getting predictions for audio with non-empty gold-standard transcriptions")
-            predictions = get_clean_predictions(
-                non_empty_test_data, pipe, num_proc=num_proc, is_remove_space=is_remove_space
-            )
+            predictions = get_clean_predictions(non_empty_test_data, pipe, num_proc=num_proc, is_remove_space=is_remove_space)
             print("Predictions data preview:")
             print(predictions[0])
 
@@ -474,26 +667,29 @@ def main_cli():
         help="Path local Buckeye format pre-processed dataset to use for testing.",
     )
 
-    parser.add_argument(
-        "-e", "--eval_out", type=Path, required=True, help="Output CSV files to write evaluation metrics to."
-    )
+    parser.add_argument("-e", "--eval_out", type=Path, required=True, help="Output CSV files to write evaluation metrics to.")
     parser.add_argument(
         "-v",
         "--verbose_results_dir",
         type=Path,
-        help="If desired, specify a path to a directory to dump by-model transcriptions with by-example performance metrics to for later inspection if desired. For each model, one CSV for detailed predictions and one for hallucinations (audio without speech, but where transcripts) are created.",
+        help=(
+            "If desired, specify a path to a directory to dump by-model transcriptions with by-example "
+            "performance metrics to for later inspection if desired. For each model, one CSV for detailed "
+            "predictions and one for hallucinations (audio without speech, but where transcripts) are created."
+        ),
     )
 
     parser.add_argument(
         "-ed",
         "--edit_dist_dir",
         type=Path,
-        help="If desired, specify a path to a directory for storing by-model edit distance results, 3 CSVs for each model: one for substitions, insertions and deletions",
+        help=(
+            "If desired, specify a path to a directory for storing by-model edit distance results, "
+            "3 CSVs for each model: one for substitions, insertions and deletions"
+        ),
     )
 
-    parser.add_argument(
-        "-ns", "--no_space", action="store_true", help="Use this flag remove spaces in IPA transcription."
-    )
+    parser.add_argument("-ns", "--no_space", action="store_true", help="Use this flag remove spaces in IPA transcription.")
 
     parser.add_argument(
         "-g",
