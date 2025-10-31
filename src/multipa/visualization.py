@@ -8,6 +8,74 @@ import seaborn as sns
 import pandas as pd
 
 
+def plot_token_confusion_matrix(
+    token_count_matrix_df: pd.DataFrame,
+    title: str,
+    predicted_keys: list[str] | set[str] | None = None,
+    predicted_column: str = "predicted",
+    reference_keys: list[str] | set[str] | None = None,
+    reference_column: str = "reference",
+    count_col: str = "count",
+    fontsize: int = 14,
+    figsize=(16, 16),
+    **kwargs,
+) -> plt.Axes:
+    """Plot a token-level confusion matrix as a heatmap.
+
+    Creates a visual representation of a confusion matrix showing how reference
+    tokens were predicted. The matrix is displayed as a seaborn heatmap with
+    optional filtering by specific tokens.
+
+    Args:
+        token_count_matrix_df (pd.DataFrame): DataFrame containing the confusion
+            matrix data in long format with columns for reference tokens,
+            predicted tokens, and counts.
+        title (str): Title to display on the plot.
+        predicted_keys (list[str] | set[str] | None, optional): If provided,
+            only these predicted tokens will be shown in the matrix. Defaults
+            to None (show all).
+        predicted_column (str, optional): Name of the column containing predicted
+            token labels. Defaults to "predicted".
+        reference_keys (list[str] | set[str] | None, optional): If provided,
+            only these reference tokens will be shown in the matrix. Defaults
+            to None (show all).
+        reference_column (str, optional): Name of the column containing reference
+            token labels. Defaults to "reference".
+        count_col (str, optional): Name of the column containing count values.
+            Defaults to "count".
+        fontsize (int, optional): Font size for the plot title. Defaults to 14.
+        figsize (tuple, optional): Figure size as (width, height) in inches.
+            Defaults to (16, 16).
+        **kwargs: Additional keyword arguments passed to seaborn.heatmap().
+
+    Returns:
+        matplotlib.axes.Axes: The axes object containing the heatmap plot.
+    """
+    df_to_display = token_count_matrix_df
+    # Filter dataframe as desired
+    if predicted_keys is not None:
+        df_to_display = df_to_display[df_to_display[predicted_column].isin(predicted_keys)]
+    if reference_keys is not None:
+        df_to_display = df_to_display[df_to_display[reference_column].isin(reference_keys)]
+
+    # Transform to pivot table and fill in missiing zeros
+    df_to_display = df_to_display.pivot(index=reference_column, columns=predicted_column, values=count_col).fillna(0)
+    plt.figure(figsize=figsize)
+    ax = sns.heatmap(
+        df_to_display,
+        annot=True,
+        **kwargs,
+    )
+    ax.set_title(title, fontsize=fontsize)
+
+    # make y-tick labels upright
+    plt.yticks(rotation=0)
+
+    # Remove '-' in tick labels, because they make things harder to read
+    ax.tick_params(left=False, bottom=False)
+    return ax
+
+
 def plot_error_rates_by_phone_and_model(
     dataframe: pd.DataFrame,
     groupby_key: str,
@@ -53,6 +121,8 @@ def plot_error_rates_by_phone_and_model(
     Returns:
         ax:  The subplot containing the line plot
     """
+    if hue_order is None:
+        hue_order = list(dataframe[groupby_key].unique())
     group_order = dataframe.groupby(phone_col)[err_rate_col].min().sort_values()
     tmp_df = dataframe.copy(deep=True)
     tmp_df["sort_order"] = tmp_df[phone_col].map(group_order)
