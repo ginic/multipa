@@ -80,7 +80,20 @@ You can run the original Taguchi et al. model (trained on 1k samples for each la
 ## Known Issues
 - `RuntimeError: Expected input_lengths to have value at least 0, but got value -1 (while checking arguments for ctc_loss_gpu)` appears sometimes just before training starts. This is non-deterministic and can be fixed by changing `--train_seed`.
 
-## Citation
+## Citations
+If you use this code, please cite the following papers:
+
+Partridge, Virginia, Joe Pater, Parth Bhangla, Ali Nirheche and Brandon Prickett. 2025/to appear. AI-assisted analysis of phonological variation in English. Special session on Deep Phonology, AMP 2025, UC Berkeley. To appear in the Proceedings of AMP 2025.
+```
+@inproceedings{partridge2025_amp,
+  author = {Partridge, Virginia, Joe Pater, Parth Bhangla, Ali Nirheche and Brandon Prickett},
+  title = {{Automated phonetic transcription for varieties of English: wav2vec 2.0 fine-tuned on the Buckeye Corpus}},
+  year=2025,
+  booktitle={Proceedings of the Annual Meeting of Phonology 2025},
+}
+```
+
+
 Chihiro Taguchi, Yusuke Sakai, Parisa Haghani, David Chiang. "Universal Automatic Phonetic Transcription into the International Phonetic Alphabet". INTERSPEECH 2023.
 ```
 @inproceedings{taguchi23_interspeech,
