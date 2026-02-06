@@ -4,8 +4,13 @@ For models we've trained on the Buckeye training split, model training code can 
 
 Note that although all prediction outputs were converted to IPA if needed (for excalibur12/wav2vec2-large-lv60_phoneme-timit_english_timit-4k_simplified and excalibur12/wav2vec2-large-lv60_phoneme-timit_english_timit-4k) and normalized to standard IPA unicode symbols using `ipatok.tokenise`, they were not post-processed to a reduced, shared symbol set.
 
-
 The purposes of the subfolders are as follows:
 - aggregate_metrics: "Leaderboard" CSVs that report aggregate (average for error rates, total sums for edit distances) results for each model. Although there are separate CSV files for different batches of experiments, all models are evaluated on the same test set, so they can be combined into a single leaderboard. These files are produced by the `multipa-evaluate` script.
-- edit_distances: Have detailed results on the most common phoneme substution, insertion and deletion errors that occur across test set samples for each model. There are 3 CSVs for each model, one for each kind of error. The naming template for files is `{model_name}_{error_type}.csv.`
+- edit_distances: Have detailed results on the most common phoneme substitution, insertion and deletion errors that occur across test set samples for each model. For each model there is a CSV for each kind of error, one for each kind of error, named `{model_name}_{error_type}.csv.`, and a confusion matrix `{model_name}_confusion_matrix.csv` combining all errors together with '***' indicating a null symbol for insertion or deletion. Note that these detailed error analyses were added to the evaluation script later in the project, so edit distance errors or confusion matrix CSV files may be missing for some models.
 - detailed_predictions: Contains one file per model with transcription predictions and metrics for every example in the test dataset, one example per line. Files are named like `{model_name}_detailed_predictions.csv`
+
+# Known Issues
+- The "NOISE" and "LAUGH" interrupt symbols were not originally removed in preprocessing to convert the Buckeye transcriptions to IPA, as they were supposed to have been replaced by 'U' as the universal interrupt symbol when utterance samples were created. This has since been corrected in the preprocessing step, but the issue was not corrected in the results in this folder. This affect results a very small number of samples in each split as follows that were left in during training and evaluation:
+    - train: s1703a_Utt4, s1104a_Utt57, s1203a_Utt2, s1401a_Utt70, s1901a_Utt23, s2303b_Utt126
+    - validation: s3202a_Utt146, s3202b_Utt13, s3202b_Utt121
+    - test: s3801b_Utt32, s3402a_Utt85
