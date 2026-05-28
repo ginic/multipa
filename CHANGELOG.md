@@ -24,6 +24,7 @@ You should also add project tags for each release in Github, see [Managing relea
 - Separated Librispeech (English) data processing and model training from Common Voice (other languages)
 - Corpus-specific vocabulary files are loaded to compare expected vocabulary against actual vocabulary from training data
 - Added support for corpora with whitespace separated phonemes to determine vocabulary
+- Forced setuptools to use version <=80.10.2 in conda environments and pyproject.toml due to outdated use of `pkg_resources` in panphon, resulting in "ModuleNotFoundError: No module named 'pkg_resources'" error when calling panphon library functions
 
 ### Fixed
 - Drop rows with null values from Buckeye transcriptions
