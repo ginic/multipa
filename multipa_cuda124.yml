@@ -5,4 +5,4 @@ channels:
 dependencies:
   - python=3.11
   - pytorch-cuda=12.4
-  
+  - setuptools<=80.10.2

@@ -1,6 +1,6 @@
 # A build system is required to convert your code into a distributable package.
 [build-system]
-requires = ["setuptools >= 61.0"]
+requires = ["setuptools<=80.10.2"]
 build-backend = "setuptools.build_meta"
 
 [project]
