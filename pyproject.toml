@@ -39,7 +39,7 @@ dependencies = [
     "pyarrow",
     "pydub==0.25.1",
     "romkan==0.2.1",
-    "torch",
+    "torch==2.12.0",
     "transformers[torch]==4.43.4",
     "unidic==1.1.0",
 ]
