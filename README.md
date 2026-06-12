@@ -11,10 +11,9 @@ This started as a [Data Core Seed Funding](https://ds.cs.umass.edu/data-core-see
 The computational resources for this work are provided by the Unity Research Computing Platform, a multi-institutional cluster lead by University of Massachusetts Amherst, the University of Rhode Island, and University of Massachusetts Dartmouth.
 
 # Installation
-Use a virtual environment, such as conda.
-It's also a good idea to upgrade pip before you start: `pip install --upgrade pip`.
-Install pytorch dependencies first: `pip install pytorch==2.5.1 torchvision==0.20.0 torchaudio==2.5.1`. A conda environment for cuda 12.4 has been provided in `multipa.yml`. For other installation options and GPU settings, see [pytorch.org](https://pytorch.org).
-Then install remaining requirements: `pip install .`. You can run `pip install -e .[dev,test]` for the developer set up, after which the best way to check that the installation worked is to run unit tests with `pytest`. You will also need to download the unidic dictionary with `python -m unidic download` (in the same python environment as you installation).
+1. Create a conda environment using `conda env create --name <your_env_name> --file=<your_env_file>.yml`. A conda environment for cuda 12.4 has been provided in `multipa_cuda124.yml` for GPUs. A CPU compatible environment is in `multipa.yml`. For other installation options and GPU settings, see [pytorch.org](https://pytorch.org).
+
+2. Then install remaining requirements: `pip install .`. You can run `pip install -e .[dev,test]` for the developer set up, after which the best way to check that the installation worked is to run unit tests with `pytest`. You will also need to download the unidic dictionary with `python -m unidic download` (in the same python environment as you installation).
 
 For convenience, scripts for setup and installation are provided in `scripts/setup.sh` (local or personal computer) and `scripts/setup_slurm.sh` (Slurm compute cluster).
 

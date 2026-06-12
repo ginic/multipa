@@ -176,9 +176,15 @@ def check_gpus(expected_gpus: int = 0):
 
 def is_valid_sample(batch):
     audio = batch["audio"]
-    if len(audio["array"]) < 1600:  # 0.1 seconds at 16kHz
-        return False
-    if len(batch["ipa"]) == 0:
+    try:
+        if len(audio["array"]) < 1600:  # 0.1 seconds at 16kHz
+            return False
+        if len(batch["ipa"]) == 0:
+            return False
+    except RuntimeError:
+        # Sometimes torchcodec throws: RuntimeError: getFramesPlayedInRangeAudio,
+        # /Users/runner/work/torchcodec/torchcodec/meta-pytorch/torchcodec/src/torchcodec/_core/SingleStreamDecoder.cpp:1289,
+        # No audio frames were decoded. This is probably because start_seconds is too high(0),or because stop_seconds(nullopt) is too low.
         return False
     return True
 
