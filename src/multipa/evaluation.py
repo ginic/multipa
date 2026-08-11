@@ -559,21 +559,7 @@ def get_clean_predictions(
     Returns:
         datasets.Dataset with clean transcription text in "prediction"
     """
-    print("Audio dataset snippet to evaluate:", audio_dataset[0])
-    audio_inputs = []
-    # Put audio data in expected format
-    for i, sample in enumerate(audio_dataset[audio_key]):
-        try:
-            print("Decoding audio:", sample)
-            decoded = sample.get_all_samples()
-            wav = decoded.data.numpy().squeeze()
-            audio_inputs.append(
-                {"raw": wav, 
-                "sampling_rate": decoded.sample_rate}
-            )
-        except RuntimeError:
-            print("Skipping sample", i, "due to RuntimeError: No audio frames decoded:", audio_dataset[i])
-    predictions_dataset = datasets.Dataset.from_list(transformer_pipe(audio_inputs))
+    predictions_dataset = datasets.Dataset.from_list(transformer_pipe(audio_dataset[audio_key]))
     predictions_dataset = predictions_dataset.map(
         lambda x: clean_text(x, text_key=text_key, is_remove_space=is_remove_space, is_normalize_ipa=is_normalize_ipa),
         num_proc=num_proc,
