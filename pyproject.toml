@@ -27,7 +27,6 @@ dependencies = [
     "evaluate==0.4.3",
     "fsspec==2023.9.2",
     "ipatok",
-    "jiwer==2.5.1",
     "kaldialign",
     "librosa>=0.11.0",
     "mecab-python3==1.0.8",
