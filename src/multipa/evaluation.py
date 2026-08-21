@@ -19,7 +19,7 @@ import panphon.distance
 import transformers
 import torch
 
-from multipa.data_utils import load_buckeye_split, clean_text, EMPTY_TRANSCRIPTION
+from multipa.data_utils import load_buckeye_split, clean_text, EMPTY_TRANSCRIPTION, decode_audio
 
 PHONE_ERRORS_EVALUATOR = evaluate.load("ginic/phone_errors")
 DETAILED_PREDICTIONS_CSV_SUFFIX = "detailed_predictions.csv"
@@ -559,7 +559,15 @@ def get_clean_predictions(
     Returns:
         datasets.Dataset with clean transcription text in "prediction"
     """
-    predictions_dataset = datasets.Dataset.from_list(transformer_pipe(audio_dataset[audio_key]))
+    # Extract audio inputs using row-level access (avoids Column object issue)
+    # and decode AudioDecoder objects if present
+    audio_inputs = []
+    for i in range(len(audio_dataset)):
+        audio = audio_dataset[i][audio_key]
+        audio_inputs.append(decode_audio(audio))
+
+    # Run pipeline directly — no .map(), no pickling needed
+    predictions_dataset = datasets.Dataset.from_list(transformer_pipe(audio_inputs))
     predictions_dataset = predictions_dataset.map(
         lambda x: clean_text(x, text_key=text_key, is_remove_space=is_remove_space, is_normalize_ipa=is_normalize_ipa),
         num_proc=num_proc,
