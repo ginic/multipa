@@ -6,7 +6,6 @@ fsspec==2023.9.2
 ipatok
 jiwer==2.5.1
 kaldialign
-levenshtein
 librosa>=0.11.0
 mecab-python3==1.0.8
 pandas
