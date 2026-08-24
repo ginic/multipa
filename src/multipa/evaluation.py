@@ -569,7 +569,7 @@ def get_clean_predictions(
         except RuntimeError as e: 
             # Catches TorchCodec RuntimeError (getFramesPlayedInRangeAudio)
             # and any other decoding failures (corrupted files, empty audio, etc.)
-            print("Sample excluded, RuntimeError. Error: %s , Sample: %s", e, batch)
+            print("Sample excluded, RuntimeError. Error: %s , Sample: %s", e, audio_dataset[i])
             
     # Run pipeline directly — no .map(), no pickling needed
     predictions_dataset = datasets.Dataset.from_list(transformer_pipe(audio_inputs))
