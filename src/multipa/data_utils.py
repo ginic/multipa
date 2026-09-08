@@ -20,6 +20,7 @@ BUCKEYE_KEY = "buckeye"
 UNKNOWN_TOKEN = "[UNK]"
 PADDING_TOKEN = "[PAD]"
 EMPTY_TRANSCRIPTION = ""
+GOLD_STANDARD_KEY = "ipa"
 
 
 class DataLoadError(Exception):
@@ -31,7 +32,7 @@ def extract_all_chars_ipa(batch: dict) -> dict:
     batch. Used to build vocabulary if there is no tokenization or whitespace
     delimiting around phonetic symbols.
     """
-    all_text = "".join(batch["ipa"])
+    all_text = "".join(batch[GOLD_STANDARD_KEY])
     return {"vocab": list(set(all_text))}
 
 
@@ -39,7 +40,7 @@ def extract_whitespace_delimited_symbols(batch: dict) -> dict:
     """Returns the whitespace delimited strings that appear in the "ipa" field
     in the batch. Used to build vocabulary when there is tokenization present.
     """
-    all_text = " ".join(batch["ipa"])
+    all_text = " ".join(batch[GOLD_STANDARD_KEY])
     whitespace_symbols = [s for s in set(all_text) if s.isspace()]
     symbols = set(all_text.split())
     return {"vocab": list(symbols) + whitespace_symbols}
@@ -189,7 +190,7 @@ def load_common_voice_split(
     ipa_dataset = datasets.load_dataset("json", data_files=str(Path(data_dir) / json_filename), split=split)
     raw_audio = datasets.load_dataset(dataset_name, language, split=huggingface_split, num_proc=num_proc, cache_dir=cache_dir)
 
-    full_dataset = join_column(raw_audio, ipa_dataset, "path", "ipa", is_check_basename=True)
+    full_dataset = join_column(raw_audio, ipa_dataset, "path", GOLD_STANDARD_KEY, is_check_basename=True)
 
     # Remove Tamil sentences containing "ச"
     if language == "ta":
@@ -231,7 +232,7 @@ def load_librispeech_split(
     raw_audio = raw_audio.rename_column("text", "sentence")
 
     # Join in IPA data by matching file name
-    full_dataset = join_column(raw_audio, ipa_dataset, "file", "ipa")
+    full_dataset = join_column(raw_audio, ipa_dataset, "file", GOLD_STANDARD_KEY)
     full_dataset = full_dataset.rename_column("file", "path")
     return full_dataset
 
