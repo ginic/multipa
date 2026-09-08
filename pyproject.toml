@@ -83,7 +83,8 @@ include-package-data = true
 #GitHub editor is 127 chars wide
 line-length = 127
 # Don't care about Jupyter notebooks for checks
-include= ["*.py", "**/pyproject.toml"]
+include=["*.py", "**/pyproject.toml"]
+exclude=["scripts", "data", "analysis"]
 
 [tool.ruff.lint]
 select=["E","F"]
