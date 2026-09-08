@@ -245,19 +245,19 @@ def load_buckeye_split(corpus_root_dir: str | os.PathLike, split: str) -> datase
     return datasets.Dataset.from_pandas(deduplicated_df)
 
 
-def decode_audio(audio_sample: object): 
-    """Takes an input item from a Dataset which may be a TorchCode AudioDecoder 
-    or the older HuggingFace audio array format, and returns the audio in the 
-    transformers pipeline format 
-    appropriate array format for processing. 
+def decode_audio(audio_sample: object):
+    """Takes an input item from a Dataset which may be a TorchCode AudioDecoder
+    or the older HuggingFace audio array format, and returns the audio in the
+    transformers pipeline format
+    appropriate array format for processing.
 
-    Args: 
+    Args:
         audio_sample: an object in unknown format from a datasets.Dataset to decode.
 
-    Raises: 
+    Raises:
         RuntimeError: if the sample could not by decoded by torchcodec
     """
-    
+
     # Handle case where audio an AudioDecoder object
     if hasattr(audio_sample, "get_all_samples"):
         decoded = audio_sample.get_all_samples()

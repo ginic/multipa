@@ -31,7 +31,7 @@ from multipa.data_utils import (
     CommonVoicePreprocessor,
     SimpleSampler,
     SubsetSampler,
-    decode_audio
+    decode_audio,
 )
 
 logger = logging.getLogger(__name__)
